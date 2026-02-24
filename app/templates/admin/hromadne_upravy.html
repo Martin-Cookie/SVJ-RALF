@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Hromadné úpravy – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Hromadné úpravy</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Hromadná editace polí jednotek</p>
+        </div>
+        <a href="/sprava" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">← Zpět na správu</a>
+    </div>
+
+    <!-- Field Selection -->
+    <div class="flex gap-2 flex-wrap">
+        {% for f in fields %}
+        <a href="/sprava/hromadne-upravy?field={{ f.key }}"
+           class="px-3 py-1.5 text-sm rounded-lg border {% if selected_field == f.key %}bg-primary-100 border-primary-300 text-primary-700 dark:bg-primary-900 dark:border-primary-700 dark:text-primary-300{% else %}border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %} transition">
+            {{ f.label }}
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if selected_field and values %}
+    <!-- Values Table -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-slate-700/50">
+                <tr>
+                    <th class="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">Hodnota</th>
+                    <th class="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">Počet</th>
+                    <th class="text-right px-4 py-2 text-xs font-medium text-gray-500 uppercase">Akce</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
+                {% for v in values %}
+                <tr>
+                    <td class="px-4 py-3 text-gray-900 dark:text-white font-medium">{{ v.value }}</td>
+                    <td class="px-4 py-3 text-gray-500">{{ v.count }}×</td>
+                    <td class="px-4 py-3 text-right">
+                        <form method="post" action="/sprava/hromadne-upravy" class="inline-flex gap-2 items-center">
+                            <input type="hidden" name="field" value="{{ selected_field }}">
+                            <input type="hidden" name="old_value" value="{{ v.raw }}">
+                            <input type="text" name="new_value" placeholder="Nová hodnota" required
+                                   class="w-40 h-8 px-2 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg transition">
+                            <button type="submit" class="px-3 py-1 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                                Změnit
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif selected_field %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center text-gray-500">
+        <p class="text-sm">Žádné hodnoty pro toto pole.</p>
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center text-gray-500">
+        <p class="text-sm">Vyberte pole pro zobrazení unikátních hodnot.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

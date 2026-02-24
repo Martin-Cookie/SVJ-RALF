@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Export dat – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Export dat</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Stáhněte data ve formátu Excel nebo CSV</p>
+        </div>
+        <a href="/sprava" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">← Zpět na správu</a>
+    </div>
+
+    <form method="post" action="/sprava/export" class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 space-y-4">
+        <div class="space-y-2">
+            <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Vyberte kategorie k exportu</p>
+            {% for cat in export_categories %}
+            <label class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                <input type="checkbox" name="categories" value="{{ cat.key }}"
+                       class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ cat.label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+
+        <div>
+            <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Formát</p>
+            <div class="flex gap-4">
+                <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input type="radio" name="format" value="xlsx" checked class="text-primary-600 focus:ring-primary-500">
+                    Excel (.xlsx)
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input type="radio" name="format" value="csv" class="text-primary-600 focus:ring-primary-500">
+                    CSV (UTF-8)
+                </label>
+            </div>
+        </div>
+
+        <button type="submit" class="w-full px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+            Exportovat
+        </button>
+        <p class="text-xs text-gray-500">Více kategorií = ZIP archiv s jednotlivými soubory.</p>
+    </form>
+</div>
+{% endblock %}

@@ -1,21 +1,25 @@
 """Administration (Správa) routes."""
+import csv
 import glob
+import io
 import os
 import shutil
 import zipfile
 from datetime import datetime
+from typing import List, Optional
 
 import bcrypt
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.config import settings
 from app.database import get_db
 from app.models.administration import SvjInfo, SvjAddress, BoardMember
-from app.models.common import AuditLog
+from app.models.common import AuditLog, EmailLog, ImportLog
+from app.models.owner import Owner, Unit, OwnerUnit, Proxy
 from app.models.user import User
 
 # Backup directory
@@ -501,3 +505,336 @@ def backup_restore(
             os.remove(tmp_path)
 
     return RedirectResponse(url="/sprava/zalohy", status_code=303)
+
+
+# --- Data Deletion (Danger Zone) ---
+
+
+def _get_delete_models(cat: str):
+    """Return list of model classes for a category (lazy imports for some)."""
+    if cat == "owners":
+        return [OwnerUnit, Proxy, Unit, Owner]
+    elif cat == "voting":
+        from app.models.voting import BallotVote, Ballot, VotingItem, Voting
+        return [BallotVote, Ballot, VotingItem, Voting]
+    elif cat == "tax":
+        from app.models.tax import TaxDistribution, TaxDocument, TaxSession
+        return [TaxDistribution, TaxDocument, TaxSession]
+    elif cat == "sync":
+        from app.models.sync import SyncSession
+        return [SyncSession]
+    elif cat == "logs":
+        return [AuditLog, EmailLog, ImportLog]
+    elif cat == "admin":
+        return [BoardMember, SvjAddress, SvjInfo]
+    return []
+
+
+_DELETE_CATEGORIES = {
+    "owners": "Vlastníci a jednotky",
+    "voting": "Hlasování",
+    "tax": "Daně",
+    "sync": "Synchronizace",
+    "logs": "Logy",
+    "admin": "Administrace",
+}
+
+
+@router.get("/sprava/smazat-data", response_class=HTMLResponse)
+def delete_data_page(request: Request, db: Session = Depends(get_db)):
+    """Show danger zone — data deletion page (admin only)."""
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    categories = []
+    for key, label in _DELETE_CATEGORIES.items():
+        models = _get_delete_models(key)
+        count = sum(db.query(m).count() for m in models)
+        categories.append({"key": key, "label": label, "count": count})
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "admin/smazat_data.html",
+        {"user": user, "categories": categories},
+    )
+
+
+@router.post("/sprava/smazat-data")
+async def delete_data_execute(request: Request, db: Session = Depends(get_db)):
+    """Execute data deletion (admin only). Requires confirmation=DELETE."""
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    form = await request.form()
+    confirmation = form.get("confirmation", "")
+    categories = form.getlist("categories")
+
+    if confirmation != "DELETE":
+        request.session["flash"] = {"type": "error", "message": "Pro smazání zadejte slovo DELETE."}
+        return RedirectResponse(url="/sprava/smazat-data", status_code=303)
+
+    if not categories:
+        request.session["flash"] = {"type": "error", "message": "Vyberte alespoň jednu kategorii."}
+        return RedirectResponse(url="/sprava/smazat-data", status_code=303)
+
+    total = 0
+    for cat in categories:
+        models = _get_delete_models(cat)
+        for model in models:
+            count = db.query(model).delete()
+            total += count
+
+    db.commit()
+    request.session["flash"] = {"type": "success", "message": f"Smazáno {total} záznamů."}
+    return RedirectResponse(url="/sprava/smazat-data", status_code=303)
+
+
+# --- Data Export ---
+
+
+def _export_model_to_rows(db: Session, model, columns: list):
+    """Export model data as list of dicts."""
+    rows = []
+    for obj in db.query(model).all():
+        row = {}
+        for col in columns:
+            val = getattr(obj, col, "")
+            if isinstance(val, datetime):
+                val = val.strftime("%Y-%m-%d %H:%M:%S")
+            elif val is None:
+                val = ""
+            row[col] = val
+        rows.append(row)
+    return rows
+
+
+def _get_export_data(db: Session, cat: str):
+    """Return (filename, columns, rows) for a category."""
+    if cat == "owners":
+        cols = ["id", "first_name", "last_name", "owner_type", "email", "phone",
+                "address", "data_box", "bank_account"]
+        return "vlastnici", cols, _export_model_to_rows(db, Owner, cols)
+    elif cat == "units":
+        cols = ["id", "unit_number", "building_number", "space_type", "section",
+                "floor_area", "room_count", "address", "orientation_number", "lv_number"]
+        return "jednotky", cols, _export_model_to_rows(db, Unit, cols)
+    elif cat == "logs":
+        cols = ["id", "action", "model_name", "record_id", "field_name", "old_value", "new_value"]
+        return "audit_log", cols, _export_model_to_rows(db, AuditLog, cols)
+    return cat, [], []
+
+
+def _rows_to_xlsx(filename: str, columns: list, rows: list) -> bytes:
+    """Convert rows to xlsx bytes."""
+    try:
+        from openpyxl import Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = filename
+        ws.append(columns)
+        for row in rows:
+            ws.append([row.get(c, "") for c in columns])
+        buf = io.BytesIO()
+        wb.save(buf)
+        return buf.getvalue()
+    except ImportError:
+        return _rows_to_csv(columns, rows)
+
+
+def _rows_to_csv(columns: list, rows: list) -> bytes:
+    """Convert rows to CSV bytes (UTF-8 with BOM)."""
+    buf = io.StringIO()
+    buf.write("\ufeff")  # BOM
+    writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(row)
+    return buf.getvalue().encode("utf-8")
+
+
+@router.get("/sprava/export", response_class=HTMLResponse)
+def export_page(request: Request, db: Session = Depends(get_db)):
+    """Show export page (admin only)."""
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    export_categories = [
+        {"key": "owners", "label": "Vlastníci"},
+        {"key": "units", "label": "Jednotky"},
+        {"key": "logs", "label": "Audit log"},
+    ]
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "admin/export.html",
+        {"user": user, "export_categories": export_categories},
+    )
+
+
+@router.post("/sprava/export")
+async def export_execute(request: Request, db: Session = Depends(get_db)):
+    """Execute data export (admin only)."""
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    form = await request.form()
+    categories = form.getlist("categories")
+    fmt = form.get("format", "xlsx")
+
+    if not categories:
+        request.session["flash"] = {"type": "error", "message": "Vyberte alespoň jednu kategorii."}
+        return RedirectResponse(url="/sprava/export", status_code=303)
+
+    exports = []
+    for cat in categories:
+        filename, columns, rows = _get_export_data(db, cat)
+        if not columns:
+            continue
+        if fmt == "csv":
+            data = _rows_to_csv(columns, rows)
+            ext = "csv"
+        else:
+            data = _rows_to_xlsx(filename, columns, rows)
+            ext = "xlsx"
+        exports.append((f"{filename}.{ext}", data))
+
+    if len(exports) == 0:
+        request.session["flash"] = {"type": "error", "message": "Žádná data k exportu."}
+        return RedirectResponse(url="/sprava/export", status_code=303)
+
+    if len(exports) == 1:
+        fname, data = exports[0]
+        if fmt == "csv":
+            media = "text/csv; charset=utf-8"
+        else:
+            media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        return Response(
+            content=data,
+            media_type=media,
+            headers={"Content-Disposition": f"attachment; filename={fname}"},
+        )
+
+    # Multiple → ZIP
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fname, data in exports:
+            zf.writestr(fname, data)
+    buf.seek(0)
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=export.zip"},
+    )
+
+
+# --- Bulk Edits ---
+
+_BULK_EDIT_FIELDS = {
+    "space_type": {"label": "Typ prostoru", "column": "space_type"},
+    "section": {"label": "Sekce", "column": "section"},
+    "room_count": {"label": "Počet místností", "column": "room_count"},
+    "ownership_type": {"label": "Druh vlastnictví", "column": "ownership_type"},
+    "address": {"label": "Adresa", "column": "address"},
+    "orientation_number": {"label": "Orientační číslo", "column": "orientation_number"},
+}
+
+
+@router.get("/sprava/hromadne-upravy", response_class=HTMLResponse)
+def bulk_edits_page(
+    request: Request,
+    field: str = "",
+    db: Session = Depends(get_db),
+):
+    """Show bulk edits page (admin only)."""
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    fields = [{"key": k, "label": v["label"]} for k, v in _BULK_EDIT_FIELDS.items()]
+    values = []
+    selected_field = field
+
+    if field and field in _BULK_EDIT_FIELDS:
+        col_name = _BULK_EDIT_FIELDS[field]["column"]
+        from sqlalchemy import func
+
+        if field == "ownership_type":
+            col = getattr(OwnerUnit, col_name)
+            results = (
+                db.query(col, func.count(OwnerUnit.id))
+                .group_by(col)
+                .order_by(func.count(OwnerUnit.id).desc())
+                .all()
+            )
+        else:
+            col = getattr(Unit, col_name)
+            results = (
+                db.query(col, func.count(Unit.id))
+                .group_by(col)
+                .order_by(func.count(Unit.id).desc())
+                .all()
+            )
+
+        for val, cnt in results:
+            values.append({"value": val or "(prázdné)", "count": cnt, "raw": val or ""})
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "admin/hromadne_upravy.html",
+        {
+            "user": user,
+            "fields": fields,
+            "values": values,
+            "selected_field": selected_field,
+        },
+    )
+
+
+@router.post("/sprava/hromadne-upravy")
+async def bulk_edits_apply(request: Request, db: Session = Depends(get_db)):
+    """Apply bulk edit (admin only)."""
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    form = await request.form()
+    field = form.get("field", "")
+    old_value = form.get("old_value", "")
+    new_value = form.get("new_value", "")
+    unit_ids = form.getlist("unit_ids")
+
+    if not field or field not in _BULK_EDIT_FIELDS or not new_value:
+        request.session["flash"] = {"type": "error", "message": "Chybné parametry."}
+        return RedirectResponse(url="/sprava/hromadne-upravy", status_code=303)
+
+    col_name = _BULK_EDIT_FIELDS[field]["column"]
+    updated = 0
+
+    if field == "ownership_type":
+        query = db.query(OwnerUnit)
+        if unit_ids:
+            query = query.filter(OwnerUnit.id.in_([int(x) for x in unit_ids]))
+        if old_value:
+            query = query.filter(getattr(OwnerUnit, col_name) == old_value)
+        updated = query.update({col_name: new_value}, synchronize_session="fetch")
+    else:
+        query = db.query(Unit)
+        if unit_ids:
+            query = query.filter(Unit.id.in_([int(x) for x in unit_ids]))
+        if old_value:
+            query = query.filter(getattr(Unit, col_name) == old_value)
+        updated = query.update({col_name: new_value}, synchronize_session="fetch")
+
+    db.commit()
+
+    label = _BULK_EDIT_FIELDS[field]["label"]
+    request.session["flash"] = {
+        "type": "success",
+        "message": f"Aktualizováno {updated} záznamů ({label}: '{old_value}' → '{new_value}').",
+    }
+    return RedirectResponse(url=f"/sprava/hromadne-upravy?field={field}", status_code=303)
