@@ -10,6 +10,9 @@
 - [iter 2] FastAPI route ordering: statické cesty (/vlastnici/export, /vlastnici/import) MUSÍ být PŘED parametrickými (/vlastnici/{id}), jinak se "import" matchne jako owner_id
 - [iter 2] Playwright heading match: pokud stránka má h1 "Vlastníci" a h3 "Žádní vlastníci", getByRole('heading', { name: 'Vlastníci' }) matchne oba → použít { exact: true }
 - [iter 2] ImportLog model: pole jsou source, records_count, status (NE module, row_count)
+- [iter 4] Playwright strict mode: flash messages contain same text as page elements → use getByRole('heading') or { exact: true } for disambiguation
+- [iter 4] FastAPI file upload: async endpoint + UploadFile + File(None) for optional file uploads. Form must have enctype="multipart/form-data"
+- [iter 4] Ballot generation: generate_ballot_pdf has fallback — creates simple .docx when no template provided
 
 ## Patterns (co funguje dobře v tomto projektu)
 - [iter 1] FastAPI Form() params místo asyncio.new_event_loop() hacku pro form data
@@ -23,7 +26,7 @@
 ## Known Issues (problémy které ještě nejsou vyřešené)
 - spustit.command + pripravit_usb.sh ještě nevytvořeny (plán: Blok 10)
 - Test coverage measurement neprobíhá (plán: iter 3)
-- Sidebar linky na neexistující routes (jednotky, hlasování, ...) → budou v Bloku 3–5
+- Sidebar linky na neexistující routes (dane, synchronizace, sprava, nastaveni) → budou v Bloku 6–10
 - starlette 0.38.6 CVE (GHSA-f96h-pmfr-66vw) — pinned by FastAPI 0.115.0, upgrade v Bloku 10
 - Pokročilé filtry vlastníků (sekce, typ vlastnictví, s/bez email/telefon) → iter 3
 - Import flow E2E test chybí (session-based = těžké testovat v Playwright) → iter 3

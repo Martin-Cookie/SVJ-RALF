@@ -232,3 +232,76 @@ Blok 2 kompletní. Pokračuji Blokem 3 (Evidence jednotek) — CRUD jednotek, pr
 Bloky 1–3 kompletní (Fáze 1). 3 verdict tabulky → GATE 3 PASSED. Pokračuji Fází 2 — Blok 4 (Hlasování).
 
 ---
+
+## Iterace 4 – 2026-02-24
+📍 Status: Iterace 4/3+ | Feature blok: 4 (Hlasování — vytvoření, body, lístky) | Bloky zbývají: 6
+
+### GATE Status
+- GATE 1: PASSED — Blok 4 built, testy 50/50, screenshoty 3/3, interaction 26/26
+- GATE 2: PASSED — review ze 6 rolí provedeno, findings zalogovány
+- GATE 2b: PASSED — CRITICAL/HIGH fixy aplikovány, testy OK, post-fix screenshoty OK
+
+### Změny
+- [4a8bd32] `test:` add voting module tests (RED state)
+- [d8a7516] `feat:` implement voting module (Hlasování)
+- [ecfa217] `test:` add Blok 4 Playwright interaction tests + voting screenshots
+- [ad05928] `fix:` add template upload, ballot generation, and ballot list
+
+### Review Findings (všech 6 rolí)
+
+| # | Role | Finding / Verdikt | Severity | Status |
+|---|------|-------------------|----------|--------|
+| 1 | CEO | Voting CRUD implementován (list, create, detail, delete, status mgmt) | — | OK |
+| 2 | CEO | Chyběl .docx template upload + word parsing | HIGH | FIXED |
+| 3 | CEO | Chyběla PDF/ballot generation | HIGH | FIXED |
+| 4 | CEO | Chyběla ballot list stránka | HIGH | FIXED |
+| 5 | CEO | Ballot detail stránka → Blok 5 (overlap s zpracováním) | MEDIUM | OPEN → iter 5 |
+| 6 | CTO | TDD compliance: test: (4a8bd32) → feat: (d8a7516) → test: (ecfa217) ✅ | — | OK |
+| 7 | CTO | pip-audit: 12 vulns (filelock, pdfminer, pillow, setuptools, starlette) | MEDIUM | OPEN → Blok 10 |
+| 8 | CTO | python-multipart PendingDeprecationWarning (import multipart) | LOW | OPEN |
+| 9 | CPO | Screenshoty profesionální na 3 viewportech | — | OK |
+| 10 | CPO | 26/26 interaction testů prochází (19 Bloky 1-3 + 7 Blok 4) | — | OK |
+| 11 | CPO | Filter bubbles, empty state, create form, detail page — vše funguje | — | OK |
+| 12 | Security | pip-audit vulns (starlette, pdfminer, filelock, setuptools, pillow) | MEDIUM | OPEN → Blok 10 |
+| 13 | Security | Žádné nové hardcoded credentials, session auth bezpečná | — | OK |
+| 14 | QA | Unit 50/50, Interaction 26/26, Visual 3/3 | — | OK |
+| 15 | QA | Ballot generation E2E test chybí (vyžaduje owners+units data) | MEDIUM | OPEN → iter 5 |
+| 16 | Designer | Clean voting list, filter bubbles, create form, detail page | — | OK |
+| 17 | Designer | Konzistentní s owners/units designem, status badges barevně odlišené | — | OK |
+| 18 | Designer | Result bars (PRO/PROTI/Zdržel se) — vizuálně čisté | — | OK |
+
+### Visual Check
+- **After Build:** Desktop ✅ / Tablet ✅ / Mobile ✅ → `screenshots/iter-4-build-*.png`
+- **After Review (fresh):** Desktop ✅ / Tablet ✅ / Mobile ✅ → `screenshots/iter-4-review-*.png`
+- **After Fix:** Desktop ✅ / Tablet ✅ / Mobile ✅ → `screenshots/iter-4-fix-*.png`
+
+### Interaction Check
+- Tlačítka: Nové hlasování, Spustit, Uzavřít, Zrušit, Smazat, Přidat bod, Smazat bod, Generovat lístky → ✅
+- Formuláře: create voting (name, quorum, dates, template), add item → ✅
+- Navigace/linky: sidebar /hlasovani, G+H shortcut, detail back link, filter bubbles → ✅
+- Hlavní user flow: dashboard → hlasování → nova → vytvořit → přidat body → spustit ✅ end-to-end OK
+- Error states: 404 on nonexistent voting ✅
+
+### Testy
+- Unit: 50/50 | Integration: — | E2E (Playwright): 26/26 | Visual: 3/3
+
+### Verdict tabulka
+
+| Role | Verdict | Odůvodnění | Open |
+|------|---------|------------|------|
+| CEO | APPROVED | Core Blok 4 features: CRUD, items, template upload, ballot generation, status workflow. Ballot detail do Bloku 5. | 1 |
+| CTO | APPROVED | TDD dodrženo. 50/50 testů. pip-audit vulns medium (pinned by FastAPI). | 2 |
+| CPO | APPROVED | Profesionální UI na 3 viewportech, 26/26 interaction testů, voting flow end-to-end. | 0 |
+| Security | APPROVED | Žádné nové issues. Dependency vulns medium priority. | 1 |
+| QA | APPROVED | 50/50 unit + 26/26 E2E + 3/3 visual. Ballot generation E2E do iter 5. | 1 |
+| Designer | APPROVED | Konzistentní design, status badges, result bars, filter bubbles, responsive. | 0 |
+
+### AGENTS.md update
+- [iter 4] Playwright strict mode: flash messages contain same text as page elements → use getByRole('heading') or { exact: true }
+- [iter 4] File upload in FastAPI: async endpoint + UploadFile + File(None) for optional uploads
+- [iter 4] Ballot generation: generate_ballot_pdf fallback creates simple .docx when no template provided
+
+### Souhrn + plán další iterace
+Blok 4 kompletní. Pokračuji Blokem 5 (Hlasování — zpracování, import, výsledky) — ballot processing, Excel import, quorum calculation.
+
+---
