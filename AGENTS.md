@@ -13,6 +13,10 @@
 - [iter 4] Playwright strict mode: flash messages contain same text as page elements → use getByRole('heading') or { exact: true } for disambiguation
 - [iter 4] FastAPI file upload: async endpoint + UploadFile + File(None) for optional file uploads. Form must have enctype="multipart/form-data"
 - [iter 4] Ballot generation: generate_ballot_pdf has fallback — creates simple .docx when no template provided
+- [iter 5] Async endpoints: pro dynamické form fields (vote_{id}) použij async def + await request.form() — NIKDY sync body parsing
+- [iter 5] Starlette FormData.getlist(): pro multi-value form fields (ballot_ids) použij form.getlist("field_name")
+- [iter 6] PDF name extraction: pdfplumber best-effort with filename fallback — nikdy nespoléhej na úspěšnou extrakci
+- [iter 6] Fuzzy matching: difflib.SequenceMatcher with bidirectional name comparison (First Last vs Last First)
 
 ## Patterns (co funguje dobře v tomto projektu)
 - [iter 1] FastAPI Form() params místo asyncio.new_event_loop() hacku pro form data
