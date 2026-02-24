@@ -372,6 +372,79 @@ def owner_update(
     return RedirectResponse(url=f"/vlastnici/{owner_id}", status_code=303)
 
 
+@router.get("/vlastnici/{owner_id}/adresa/{prefix}/upravit-formular", response_class=HTMLResponse)
+def owner_address_edit_form(
+    owner_id: int, prefix: str, request: Request, db: Session = Depends(get_db)
+):
+    """HTMX: return address edit form partial for perm or corr address."""
+    user = get_current_user(request, db)
+    if user is None:
+        return HTMLResponse("")
+    if prefix not in ("perm", "corr"):
+        return HTMLResponse("Neplatný prefix adresy", status_code=404)
+    owner = db.query(Owner).filter(Owner.id == owner_id).first()
+    if owner is None:
+        return HTMLResponse("Vlastník nenalezen", status_code=404)
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "partials/owner_address_form.html",
+        {"owner": owner, "prefix": prefix},
+    )
+
+
+@router.get("/vlastnici/{owner_id}/adresa/{prefix}/info", response_class=HTMLResponse)
+def owner_address_info(
+    owner_id: int, prefix: str, request: Request, db: Session = Depends(get_db)
+):
+    """HTMX: return address display partial for perm or corr address."""
+    user = get_current_user(request, db)
+    if user is None:
+        return HTMLResponse("")
+    if prefix not in ("perm", "corr"):
+        return HTMLResponse("Neplatný prefix adresy", status_code=404)
+    owner = db.query(Owner).filter(Owner.id == owner_id).first()
+    if owner is None:
+        return HTMLResponse("Vlastník nenalezen", status_code=404)
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "partials/owner_address_display.html",
+        {"owner": owner, "prefix": prefix},
+    )
+
+
+@router.post("/vlastnici/{owner_id}/adresa/{prefix}/upravit")
+def owner_address_update(
+    owner_id: int,
+    prefix: str,
+    request: Request,
+    street: str = Form(""),
+    city: str = Form(""),
+    zip: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Save address (perm or corr) for an owner."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if prefix not in ("perm", "corr"):
+        return HTMLResponse("Neplatný prefix adresy", status_code=404)
+    owner = db.query(Owner).filter(Owner.id == owner_id).first()
+    if owner is None:
+        return HTMLResponse("Vlastník nenalezen", status_code=404)
+
+    setattr(owner, f"{prefix}_street", street)
+    setattr(owner, f"{prefix}_city", city)
+    setattr(owner, f"{prefix}_zip", zip)
+    db.commit()
+
+    # Return HTMX display partial
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "partials/owner_address_display.html",
+        {"owner": owner, "prefix": prefix},
+    )
+
+
 @router.post("/vlastnici/{owner_id}/jednotky/pridat")
 def owner_add_unit(
     owner_id: int,

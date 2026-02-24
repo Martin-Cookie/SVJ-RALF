@@ -217,6 +217,52 @@ def tax_confirm_match(
     return RedirectResponse(url=f"/dane/{session_id}/parovani", status_code=303)
 
 
+@router.post("/dane/{session_id}/prirazeni/{doc_id}")
+def tax_manual_assignment(
+    session_id: int,
+    doc_id: int,
+    request: Request,
+    owner_id: int = __import__("fastapi").Form(...),
+    db: Session = Depends(get_db),
+):
+    """Manually assign a document to an owner."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    doc = db.query(TaxDocument).filter(TaxDocument.id == doc_id, TaxDocument.session_id == session_id).first()
+    if doc is None:
+        return HTMLResponse("Dokument nenalezen", status_code=404)
+
+    from app.models.owner import Owner
+    owner = db.query(Owner).filter(Owner.id == owner_id).first()
+    if owner is None:
+        request.session["flash"] = {"type": "error", "message": "Vlastník nenalezen."}
+        return RedirectResponse(url=f"/dane/{session_id}/parovani", status_code=303)
+
+    # Remove existing unconfirmed distributions for this document
+    existing = db.query(TaxDistribution).filter(
+        TaxDistribution.document_id == doc_id,
+        TaxDistribution.is_confirmed != 1,
+    ).all()
+    for d in existing:
+        db.delete(d)
+
+    # Create new distribution
+    dist = TaxDistribution(
+        document_id=doc_id,
+        owner_id=owner_id,
+        matched_name=owner.display_name,
+        match_score=1.0,
+        is_confirmed=1,
+    )
+    db.add(dist)
+    db.commit()
+
+    request.session["flash"] = {"type": "success", "message": f"Dokument přiřazen vlastníkovi {owner.display_name}."}
+    return RedirectResponse(url=f"/dane/{session_id}/parovani", status_code=303)
+
+
 @router.post("/dane/{session_id}/smazat")
 def tax_delete(
     session_id: int,
