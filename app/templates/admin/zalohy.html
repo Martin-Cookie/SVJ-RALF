@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Zálohy – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Zálohy</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ backups | length }} záloh</p>
+        </div>
+        <a href="/sprava" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">← Zpět na správu</a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Create Backup -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+            <h2 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Vytvořit zálohu</h2>
+            <form method="post" action="/sprava/zaloha/vytvorit" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Název zálohy (volitelné)</label>
+                    <input type="text" name="name" placeholder="backup"
+                           class="w-full h-9 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg transition">
+                </div>
+                <button type="submit" class="w-full px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                    Vytvořit zálohu
+                </button>
+            </form>
+        </div>
+
+        <!-- Restore Backup -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+            <h2 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Obnovit ze zálohy</h2>
+            <form method="post" action="/sprava/zaloha/obnovit" enctype="multipart/form-data" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">ZIP soubor se zálohou</label>
+                    <input type="file" name="file" accept=".zip"
+                           class="w-full text-sm text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 transition">
+                </div>
+                <button type="submit" class="w-full px-4 py-2 text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 rounded-lg transition">
+                    Obnovit
+                </button>
+                <p class="text-xs text-gray-500">Před obnovou se automaticky vytvoří pojistná záloha.</p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Backup List -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+        {% if backups %}
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-slate-700/50">
+                <tr>
+                    <th class="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">Soubor</th>
+                    <th class="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">Datum</th>
+                    <th class="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">Velikost</th>
+                    <th class="text-right px-4 py-2 text-xs font-medium text-gray-500 uppercase">Akce</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
+                {% for b in backups %}
+                <tr>
+                    <td class="px-4 py-3 text-gray-900 dark:text-white font-medium">{{ b.filename }}</td>
+                    <td class="px-4 py-3 text-gray-500 text-xs">{{ b.date.strftime('%d.%m.%Y %H:%M') }}</td>
+                    <td class="px-4 py-3 text-gray-500 text-xs">{{ "%.1f"|format(b.size / 1024) }} KB</td>
+                    <td class="px-4 py-3 text-right">
+                        <div class="flex items-center justify-end gap-2">
+                            <a href="/sprava/zaloha/{{ b.filename }}/stahnout"
+                               class="text-xs text-primary-600 hover:text-primary-700">Stáhnout</a>
+                            <form method="post" action="/sprava/zaloha/{{ b.filename }}/smazat" class="inline">
+                                <button type="submit" class="text-xs text-red-500 hover:text-red-700">Smazat</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="p-8 text-center text-gray-500">
+            <p class="text-sm">Žádné zálohy.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
