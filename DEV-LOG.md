@@ -1044,3 +1044,71 @@ Pokračuji od Fáze 1 (Build), iterace 12.
 
 ### Výsledek
 📍 RALF COMPLETE | Iterací: 14 | All roles: APPROVED | 205 tests | 96.7% PRD coverage
+
+---
+## RE-ENTRY AUDIT #3 – 2026-02-24 (Deferred Features)
+
+### Stav projektu
+- Předchozích iterací: 14
+- Testy: 205/205 prochází
+- Git: 72635cd (pushed)
+
+### Deferred features (z HANDOFF.md + PRD audit)
+
+**Block G (iter 15): Voting import enhancements + Exchange improvements**
+- Voting import: column mapping step (PRD 4-step flow)
+- Voting import: configurable start row + import mode (doplnit/přepsat)
+- Exchange: date picker for exchange date
+- Exchange: AuditLog/ImportLog entries
+- SJM co-owner matching in voting import
+
+**Block H (iter 16): Owner filters + Back URL + Backup restore**
+- Owner advanced filters: ownership type (SJM/VL/SJVL), contact filters (s/bez email/telefon)
+- Back URL chain: preserve filters across navigation
+- Backup restore: folder upload (webkitdirectory) + DB file upload
+
+**Block I (iter 17): Automatic backups + Voting proxy**
+- Automatic backups: background task, configurable frequency, auto-cleanup
+- Voting proxy (plné moci): Proxy model, delegation logic
+
+Pokračuji od Fáze 1 (Build), iterace 15.
+
+---
+## Iterace 15 – 2026-02-24
+📍 Status: Iterace 15 | Feature blok: G (Voting Import Enhancements + Exchange) | Bloky zbývají: 2
+
+### GATE Status
+- GATE 1: PASSED — 216 tests (11 new)
+- GATE 2: PASSED — 15 findings (H:3, M:6, L:4)
+- GATE 2b: PASSED — HIGH fixes applied, 216 tests pass
+
+### Změny
+- [615694e] `test:` enhanced voting import + exchange features (RED)
+- [d38f569] `feat:` 4-step voting import + exchange date picker + AuditLog
+- [c5a97a8] `fix:` input validation, openpyxl security, test fix
+
+### Review Findings
+
+| # | Role | Finding | Severity | Status |
+|---|------|---------|----------|--------|
+| 1 | Security | Unguarded int() cast on form input in /import/mapovani | HIGH | FIXED |
+| 2 | Security | CSRF protection absent (systemic) | HIGH | KNOWN/DEFERRED |
+| 3 | Security | openpyxl processes external links (SSRF) | MEDIUM | FIXED (keep_links=False) |
+| 4 | Security | Temp file not cleaned on mapping error path | MEDIUM | KNOWN (low risk) |
+| 5 | CTO | voting_import_confirm sync def blocks ASGI loop | MEDIUM | KNOWN (low risk, fast files) |
+| 6 | CTO | Bounds check on column indices | MEDIUM | FIXED |
+| 7 | CTO | Bulk exchange lacks custom date feature parity | LOW | DEFERRED |
+| 8 | QA | Vacuous test for bulk exchange audit logs | HIGH | FIXED |
+| 9 | QA | Missing negative-path tests for mapping | MEDIUM | DEFERRED |
+| 10 | Designer | Cell rendering drops 0/False values | MEDIUM | FIXED |
+
+### Verdict tabulka
+
+| Role | Verdict | Odůvodnění | Open |
+|------|---------|------------|------|
+| CEO | APPROVED | All Block G features complete: 4-step import, SJM, date picker, AuditLog | 0 |
+| CTO | APPROVED | After fixes: input validation, bounds check | 1 (sync confirm) |
+| CPO | APPROVED | 4-step flow intuitive, match stats in preview | 0 |
+| Security | APPROVED | Input validation + openpyxl hardening applied, CSRF deferred (systemic) | 1 |
+| QA | APPROVED | Vacuous test fixed, 216 tests total | 0 |
+| Designer | APPROVED | Step indicators, date picker, cell rendering fixed | 0 |

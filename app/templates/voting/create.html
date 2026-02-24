@@ -14,6 +14,13 @@
     <!-- Create form -->
     <form method="post" action="/hlasovani/nova" enctype="multipart/form-data" class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6 space-y-4">
         <div>
+            <label for="template" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Šablona (.docx)</label>
+            <input type="file" id="template" name="template" accept=".docx"
+                   class="w-full text-sm text-gray-600 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 dark:file:bg-primary-900/30 dark:file:text-primary-300 hover:file:bg-primary-100 dark:hover:file:bg-primary-900/50 transition">
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="file-hint">Vyberte šablonu pro automatické vyplnění názvu, dat a bodů hlasování.</p>
+        </div>
+
+        <div>
             <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Název hlasování</label>
             <input type="text" id="name" name="name" required
                    class="w-full h-9 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
@@ -40,13 +47,6 @@
             </div>
         </div>
 
-        <div>
-            <label for="template" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Šablona (.docx)</label>
-            <input type="file" id="template" name="template" accept=".docx"
-                   class="w-full text-sm text-gray-600 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 dark:file:bg-primary-900/30 dark:file:text-primary-300 hover:file:bg-primary-100 dark:hover:file:bg-primary-900/50 transition">
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Volitelné. Body hlasování se automaticky načtou ze šablony.</p>
-        </div>
-
         <div class="flex items-center justify-end gap-3 pt-2">
             <a href="/hlasovani" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition">Zrušit</a>
             <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
@@ -55,4 +55,79 @@
         </div>
     </form>
 </div>
+
+<script>
+document.getElementById('template').addEventListener('change', async function() {
+    const file = this.files[0];
+    if (!file) return;
+
+    const hint = document.getElementById('file-hint');
+    hint.textContent = 'Načítám metadata ze šablony...';
+    hint.className = 'text-xs mt-1 text-blue-500 dark:text-blue-400';
+
+    const formData = new FormData();
+    formData.append('template', file);
+
+    try {
+        const resp = await fetch('/hlasovani/nova/nahled-metadat', {
+            method: 'POST',
+            body: formData,
+        });
+
+        let data;
+        try {
+            data = await resp.json();
+        } catch (parseErr) {
+            hint.textContent = 'Server vrátil neočekávanou odpověď (HTTP ' + resp.status + ').';
+            hint.className = 'text-xs mt-1 text-red-500 dark:text-red-400';
+            return;
+        }
+
+        if (!resp.ok) {
+            const errMsg = data.error || (data.detail ? JSON.stringify(data.detail) : 'HTTP ' + resp.status);
+            hint.textContent = errMsg;
+            hint.className = 'text-xs mt-1 text-red-500 dark:text-red-400';
+            return;
+        }
+
+        const meta = data.meta || {};
+        let filled = [];
+
+        const nameInput = document.getElementById('name');
+        if (!nameInput.value.trim() && meta.name) {
+            nameInput.value = meta.name;
+            filled.push('název');
+        }
+
+        const startInput = document.getElementById('start_date');
+        if (!startInput.value && meta.start_date) {
+            startInput.value = meta.start_date;
+            filled.push('datum zahájení');
+        }
+
+        const endInput = document.getElementById('end_date');
+        if (!endInput.value && meta.end_date) {
+            endInput.value = meta.end_date;
+            filled.push('datum ukončení');
+        }
+
+        let msg = '';
+        if (data.items_count > 0) {
+            msg += 'Nalezeno ' + data.items_count + ' bodů hlasování.';
+        }
+        if (filled.length > 0) {
+            msg += (msg ? ' ' : '') + 'Předvyplněno: ' + filled.join(', ') + '.';
+        }
+        if (!msg) {
+            msg = 'Šablona načtena, metadata nebyla nalezena.';
+        }
+
+        hint.textContent = msg;
+        hint.className = 'text-xs mt-1 text-green-600 dark:text-green-400';
+    } catch (e) {
+        hint.textContent = 'Chyba: ' + e.message;
+        hint.className = 'text-xs mt-1 text-red-500 dark:text-red-400';
+    }
+});
+</script>
 {% endblock %}
