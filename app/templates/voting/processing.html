@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Zpracování – {{ voting.name }} – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <!-- Page header -->
+    <div class="flex items-center gap-3">
+        <a href="/hlasovani/{{ voting.id }}" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Zpracování lístků</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ voting.name }}</p>
+        </div>
+    </div>
+
+    {% if ballots %}
+    <!-- Bulk processing form -->
+    <form method="post" action="/hlasovani/{{ voting.id }}/zpracovat-hromadne" class="space-y-4">
+        <!-- Vote selection for bulk -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+            <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Hromadné hlasování</h3>
+            {% for item in items %}
+            <div class="flex items-center gap-4 py-2 border-b border-gray-100 dark:border-slate-700 last:border-0">
+                <span class="text-sm text-gray-600 dark:text-gray-400 flex-1">{{ item.number }}. {{ item.text }}</span>
+                <div class="flex items-center gap-3">
+                    <label class="flex items-center gap-1 cursor-pointer">
+                        <input type="radio" name="vote_{{ item.id }}" value="PRO" class="w-3.5 h-3.5 text-green-600 border-gray-300">
+                        <span class="text-xs text-green-600">PRO</span>
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                        <input type="radio" name="vote_{{ item.id }}" value="PROTI" class="w-3.5 h-3.5 text-red-600 border-gray-300">
+                        <span class="text-xs text-red-600">PROTI</span>
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                        <input type="radio" name="vote_{{ item.id }}" value="Zdržel se" class="w-3.5 h-3.5 text-gray-600 border-gray-300">
+                        <span class="text-xs text-gray-500">Zdržel</span>
+                    </label>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Ballot selection -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
+                            <th class="px-4 py-2.5 text-left">
+                                <input type="checkbox" id="select-all" class="w-4 h-4 rounded border-gray-300" onchange="document.querySelectorAll('input[name=ballot_ids]').forEach(cb => cb.checked = this.checked)">
+                            </th>
+                            <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Vlastník</th>
+                            <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Jednotka</th>
+                            <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Stav</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
+                        {% for ballot in ballots %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/30">
+                            <td class="px-4 py-2.5">
+                                <input type="checkbox" name="ballot_ids" value="{{ ballot.id }}" class="w-4 h-4 rounded border-gray-300">
+                            </td>
+                            <td class="px-4 py-2.5">{{ ballot.owner.display_name }}</td>
+                            <td class="px-4 py-2.5 text-gray-500">{% if ballot.unit %}{{ ballot.unit.unit_number }}{% else %}–{% endif %}</td>
+                            <td class="px-4 py-2.5">
+                                <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full
+                                    {% if ballot.status == 'zpracován' %}bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300
+                                    {% else %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300{% endif %}">
+                                    {{ ballot.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="flex justify-end">
+            <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                Aplikovat na vybrané
+            </button>
+        </div>
+    </form>
+    {% else %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Žádné lístky k zpracování.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

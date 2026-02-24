@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Hlasovací lístek – {{ voting.name }} – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <!-- Page header -->
+    <div class="flex items-center gap-3">
+        <a href="/hlasovani/{{ voting.id }}/listky" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Hlasovací lístek</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                <a href="/vlastnici/{{ ballot.owner_id }}" class="text-primary-600 dark:text-primary-400 hover:underline">{{ ballot.owner.display_name }}</a>
+                {% if ballot.unit %} — Jednotka {{ ballot.unit.unit_number }}{% endif %}
+                — <span class="inline-flex px-1.5 py-0.5 text-xs font-medium rounded
+                    {% if ballot.status == 'zpracován' %}bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300
+                    {% else %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300{% endif %}">{{ ballot.status }}</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Vote form -->
+    <form method="post" action="/hlasovani/{{ voting.id }}/zpracovat/{{ ballot.id }}" class="space-y-3">
+        {% for item in items %}
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+            <p class="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                <span class="text-xs text-gray-400 dark:text-gray-500">Bod {{ item.number }}:</span>
+                {{ item.text }}
+            </p>
+            <div class="flex items-center gap-4">
+                {% set current_vote = existing_votes.get(item.id, '') %}
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="vote_{{ item.id }}" value="PRO" {% if current_vote == 'PRO' %}checked{% endif %}
+                           class="w-4 h-4 text-green-600 focus:ring-green-500 border-gray-300">
+                    <span class="text-sm font-medium text-green-600 dark:text-green-400">PRO</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="vote_{{ item.id }}" value="PROTI" {% if current_vote == 'PROTI' %}checked{% endif %}
+                           class="w-4 h-4 text-red-600 focus:ring-red-500 border-gray-300">
+                    <span class="text-sm font-medium text-red-600 dark:text-red-400">PROTI</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="vote_{{ item.id }}" value="Zdržel se" {% if current_vote == 'Zdržel se' %}checked{% endif %}
+                           class="w-4 h-4 text-gray-600 focus:ring-gray-500 border-gray-300">
+                    <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Zdržel se</span>
+                </label>
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="flex items-center justify-end gap-3">
+            <a href="/hlasovani/{{ voting.id }}/listky" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition">Zpět</a>
+            <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                Uložit hlasy
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

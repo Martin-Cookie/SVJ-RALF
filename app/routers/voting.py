@@ -408,6 +408,237 @@ def voting_ballots_list(
     )
 
 
+@router.get("/hlasovani/{voting_id}/listek/{ballot_id}", response_class=HTMLResponse)
+def ballot_detail(
+    voting_id: int,
+    ballot_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Show ballot detail with vote form."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+
+    ballot = db.query(Ballot).filter(
+        Ballot.id == ballot_id, Ballot.voting_id == voting_id
+    ).first()
+    if ballot is None:
+        return HTMLResponse("Lístek nenalezen", status_code=404)
+
+    items = (
+        db.query(VotingItem)
+        .filter(VotingItem.voting_id == voting_id)
+        .order_by(VotingItem.number)
+        .all()
+    )
+
+    # Get existing votes for this ballot
+    existing_votes = {
+        bv.voting_item_id: bv.vote
+        for bv in db.query(BallotVote).filter(BallotVote.ballot_id == ballot_id).all()
+    }
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "voting/ballot_detail.html",
+        {
+            "user": user,
+            "voting": voting,
+            "ballot": ballot,
+            "items": items,
+            "existing_votes": existing_votes,
+        },
+    )
+
+
+@router.post("/hlasovani/{voting_id}/zpracovat/{ballot_id}")
+async def process_single_ballot(
+    voting_id: int,
+    ballot_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Process a single ballot — record votes."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+
+    ballot = db.query(Ballot).filter(
+        Ballot.id == ballot_id, Ballot.voting_id == voting_id
+    ).first()
+    if ballot is None:
+        return HTMLResponse("Lístek nenalezen", status_code=404)
+
+    items = (
+        db.query(VotingItem)
+        .filter(VotingItem.voting_id == voting_id)
+        .all()
+    )
+
+    # Delete existing votes for this ballot
+    db.query(BallotVote).filter(BallotVote.ballot_id == ballot_id).delete()
+
+    # Record new votes from form data
+    form = await request.form()
+
+    for item in items:
+        vote_key = f"vote_{item.id}"
+        vote_value = form.get(vote_key, "")
+        if vote_value in ("PRO", "PROTI", "Zdržel se"):
+            db.add(BallotVote(
+                ballot_id=ballot_id,
+                voting_item_id=item.id,
+                vote=vote_value,
+            ))
+
+    ballot.status = "zpracován"
+    db.commit()
+
+    request.session["flash"] = {"type": "success", "message": "Lístek zpracován."}
+    return RedirectResponse(url=f"/hlasovani/{voting_id}/listky", status_code=303)
+
+
+@router.get("/hlasovani/{voting_id}/zpracovani", response_class=HTMLResponse)
+def processing_page(
+    voting_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Show ballot processing interface."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+
+    ballots = (
+        db.query(Ballot)
+        .filter(Ballot.voting_id == voting_id)
+        .all()
+    )
+
+    items = (
+        db.query(VotingItem)
+        .filter(VotingItem.voting_id == voting_id)
+        .order_by(VotingItem.number)
+        .all()
+    )
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "voting/processing.html",
+        {
+            "user": user,
+            "voting": voting,
+            "ballots": ballots,
+            "items": items,
+        },
+    )
+
+
+@router.post("/hlasovani/{voting_id}/zpracovat-hromadne")
+async def process_bulk_ballots(
+    voting_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Bulk process multiple ballots with same votes."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+
+    items = (
+        db.query(VotingItem)
+        .filter(VotingItem.voting_id == voting_id)
+        .all()
+    )
+
+    # Parse form data
+    form = await request.form()
+    ballot_ids = form.getlist("ballot_ids")
+
+    processed = 0
+    for bid_str in ballot_ids:
+        bid = int(bid_str)
+        ballot = db.query(Ballot).filter(
+            Ballot.id == bid, Ballot.voting_id == voting_id
+        ).first()
+        if ballot is None:
+            continue
+
+        # Delete existing votes
+        db.query(BallotVote).filter(BallotVote.ballot_id == bid).delete()
+
+        # Record votes
+        for item in items:
+            vote_key = f"vote_{item.id}"
+            vote_value = form.get(vote_key, "")
+            if vote_value in ("PRO", "PROTI", "Zdržel se"):
+                db.add(BallotVote(
+                    ballot_id=bid,
+                    voting_item_id=item.id,
+                    vote=vote_value,
+                ))
+
+        ballot.status = "zpracován"
+        processed += 1
+
+    db.commit()
+
+    request.session["flash"] = {"type": "success", "message": f"Zpracováno {processed} lístků."}
+    return RedirectResponse(url=f"/hlasovani/{voting_id}/zpracovani", status_code=303)
+
+
+@router.get("/hlasovani/{voting_id}/neodevzdane", response_class=HTMLResponse)
+def unsubmitted_ballots(
+    voting_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """List unprocessed ballots."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+
+    ballots = (
+        db.query(Ballot)
+        .filter(
+            Ballot.voting_id == voting_id,
+            Ballot.status.notin_(["zpracován"]),
+        )
+        .all()
+    )
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "voting/unsubmitted.html",
+        {
+            "user": user,
+            "voting": voting,
+            "ballots": ballots,
+        },
+    )
+
+
 @router.post("/hlasovani/{voting_id}/smazat")
 def voting_delete(
     voting_id: int,
