@@ -11,29 +11,75 @@
     </div>
 
     <!-- Search + Filter -->
-    <div class="flex flex-col sm:flex-row gap-3">
-        <form method="get" action="/jednotky" class="flex-1">
-            <div class="relative">
-                <input type="text" name="search" value="{{ search }}" placeholder="Hledat jednotku (číslo, budova, adresa)..."
-                       class="w-full h-9 pl-9 pr-3 text-sm bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
-                <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                {% if building %}<input type="hidden" name="building" value="{{ building }}">{% endif %}
-            </div>
-        </form>
+    <div class="flex flex-col gap-3">
+        <div class="flex flex-col sm:flex-row gap-3">
+            <form method="get" action="/jednotky" class="flex-1">
+                <div class="relative">
+                    <input type="text" name="search" value="{{ search }}" placeholder="Hledat jednotku (číslo, budova, adresa)..."
+                           class="w-full h-9 pl-9 pr-3 text-sm bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                    <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    {% if building %}<input type="hidden" name="building" value="{{ building }}">{% endif %}
+                    {% if space_type %}<input type="hidden" name="space_type" value="{{ space_type }}">{% endif %}
+                    {% if section %}<input type="hidden" name="section" value="{{ section }}">{% endif %}
+                </div>
+            </form>
+        </div>
+        <!-- Filter bubbles: Budova -->
         {% if building_list %}
-        <div class="flex items-center gap-2 flex-wrap">
-            <a href="/jednotky{% if search %}?search={{ search }}{% endif %}"
-               class="px-3 py-1.5 text-xs font-medium rounded-full transition
+        <div class="flex items-center gap-2 flex-wrap flex-1">
+            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Budova:</span>
+            <a href="/jednotky{% if search %}?search={{ search }}{% endif %}{% if space_type %}&space_type={{ space_type }}{% endif %}{% if section %}&section={{ section }}{% endif %}"
+               class="flex-1 text-center px-3 py-1.5 text-xs font-medium rounded-full transition
                       {% if not building %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
                       {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
                 Všechny
             </a>
             {% for b in building_list %}
-            <a href="/jednotky?building={{ b }}{% if search %}&search={{ search }}{% endif %}"
-               class="px-3 py-1.5 text-xs font-medium rounded-full transition
+            <a href="/jednotky?building={{ b }}{% if search %}&search={{ search }}{% endif %}{% if space_type %}&space_type={{ space_type }}{% endif %}{% if section %}&section={{ section }}{% endif %}"
+               class="flex-1 text-center px-3 py-1.5 text-xs font-medium rounded-full transition
                       {% if building == b %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
                       {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
                 {{ b }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <!-- Filter bubbles: Typ prostoru -->
+        {% if space_type_list %}
+        <div class="flex items-center gap-2 flex-wrap flex-1">
+            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Typ:</span>
+            <a href="/jednotky{% if search %}?search={{ search }}{% endif %}{% if building %}&building={{ building }}{% endif %}{% if section %}&section={{ section }}{% endif %}"
+               class="flex-1 text-center px-3 py-1.5 text-xs font-medium rounded-full transition
+                      {% if not space_type %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                      {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+                Všechny ({{ total }})
+            </a>
+            {% for st in space_type_list %}
+            <a href="/jednotky?space_type={{ st.value }}{% if search %}&search={{ search }}{% endif %}{% if building %}&building={{ building }}{% endif %}{% if section %}&section={{ section }}{% endif %}"
+               class="flex-1 text-center px-3 py-1.5 text-xs font-medium rounded-full transition
+                      {% if space_type == st.value %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                      {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+                {{ st.value }} ({{ st.count }})
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <!-- Filter bubbles: Sekce -->
+        {% if section_list %}
+        <div class="flex items-center gap-2 flex-wrap flex-1">
+            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Sekce:</span>
+            <a href="/jednotky{% if search %}?search={{ search }}{% endif %}{% if building %}&building={{ building }}{% endif %}{% if space_type %}&space_type={{ space_type }}{% endif %}"
+               class="flex-1 text-center px-3 py-1.5 text-xs font-medium rounded-full transition
+                      {% if not section %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                      {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+                Všechny
+            </a>
+            {% for s in section_list %}
+            <a href="/jednotky?section={{ s.value }}{% if search %}&search={{ search }}{% endif %}{% if building %}&building={{ building }}{% endif %}{% if space_type %}&space_type={{ space_type }}{% endif %}"
+               class="flex-1 text-center px-3 py-1.5 text-xs font-medium rounded-full transition
+                      {% if section == s.value %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                      {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+                {{ s.value }} ({{ s.count }})
             </a>
             {% endfor %}
         </div>
@@ -44,15 +90,18 @@
     {% if units %}
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full text-sm sortable" data-sort-table>
+            <table class="w-full text-sm sortable sticky-header" data-sort-table>
                 <thead>
                     <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
                         <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="0">Číslo ↕</th>
                         <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="1">Budova ↕</th>
-                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="2">Sekce ↕</th>
-                        <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="3">Plocha m² ↕</th>
-                        <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="4">Podíl SČD ↕</th>
-                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden lg:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="5">Vlastníci ↕</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="2">Typ prostoru ↕</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="3">Sekce ↕</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden lg:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="4">Adresa ↕</th>
+                        <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400 hidden lg:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="5">LV ↕</th>
+                        <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="6">Plocha m² ↕</th>
+                        <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="7">Podíl SČD ↕</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden xl:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="8">Vlastníci ↕</th>
                         <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400">Akce</th>
                     </tr>
                 </thead>
@@ -65,10 +114,13 @@
                             </a>
                         </td>
                         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400">{{ unit.building_number or "–" }}</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden md:table-cell">{{ unit.space_type or "–" }}</td>
                         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden md:table-cell">{{ unit.section or "–" }}</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden lg:table-cell">{{ unit.address or "–" }}</td>
+                        <td class="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400 hidden lg:table-cell">{{ unit.lv_number or "–" }}</td>
                         <td class="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400">{{ unit.floor_area | cislo if unit.floor_area else "–" }}</td>
                         <td class="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400 hidden md:table-cell">{{ unit.podil_scd | cislo if unit.podil_scd else "–" }}</td>
-                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden lg:table-cell">
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden xl:table-cell">
                             {{ unit.owner_units | selectattr('valid_to', 'none') | list | length }}
                         </td>
                         <td class="px-4 py-2.5 text-right">

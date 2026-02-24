@@ -36,21 +36,21 @@
             </div>
         </form>
         <!-- Filter bubbles -->
-        <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex items-center gap-2 flex-wrap flex-1">
             <a href="/vlastnici{% if search %}?search={{ search }}{% endif %}"
-               class="px-3 py-1.5 text-xs font-medium rounded-full transition
+               class="flex-1 text-center px-3 py-1.5 text-xs font-medium rounded-full transition
                       {% if not typ %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
                       {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
                 Všichni ({{ total }})
             </a>
             <a href="/vlastnici?typ=physical{% if search %}&search={{ search }}{% endif %}"
-               class="px-3 py-1.5 text-xs font-medium rounded-full transition
+               class="flex-1 text-center px-3 py-1.5 text-xs font-medium rounded-full transition
                       {% if typ == 'physical' %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
                       {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
                 Fyzické ({{ fyzicka_count }})
             </a>
             <a href="/vlastnici?typ=legal{% if search %}&search={{ search }}{% endif %}"
-               class="px-3 py-1.5 text-xs font-medium rounded-full transition
+               class="flex-1 text-center px-3 py-1.5 text-xs font-medium rounded-full transition
                       {% if typ == 'legal' %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
                       {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
                 Právnické ({{ pravnicka_count }})
@@ -96,14 +96,17 @@
     {% if owners %}
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full text-sm sortable" data-sort-table>
+            <table class="w-full text-sm sortable sticky-header" data-sort-table>
                 <thead>
                     <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
                         <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="0">Jméno ↕</th>
                         <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="1">Typ ↕</th>
                         <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="2">Email ↕</th>
                         <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="3">Telefon ↕</th>
-                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden lg:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="4">Jednotky ↕</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden lg:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="4">RČ/IČ ↕</th>
+                        <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400 hidden lg:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="5">Podíl % ↕</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden xl:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="6">Sekce ↕</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden xl:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="7">Jednotky ↕</th>
                         <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400">Akce</th>
                     </tr>
                 </thead>
@@ -125,6 +128,20 @@
                         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden md:table-cell">{{ owner.email or "–" }}</td>
                         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden md:table-cell">{{ owner.phone or "–" }}</td>
                         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden lg:table-cell">
+                            {% if owner.owner_type == 'physical' and owner.birth_number %}{{ owner.birth_number[:6] }}/****{% elif owner.owner_type == 'legal' and owner.company_id %}{{ owner.company_id }}{% else %}–{% endif %}
+                        </td>
+                        <td class="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400 hidden lg:table-cell">
+                            {% set active_units = owner.owner_units | selectattr('valid_to', 'none') | list %}
+                            {% set total_share = active_units | map(attribute='share') | sum %}
+                            {% if total_share > 0 %}{{ "%.1f" | format(total_share) }}{% else %}–{% endif %}
+                        </td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden xl:table-cell">
+                            {% set active_units = owner.owner_units | selectattr('valid_to', 'none') | list %}
+                            {% set sections = [] %}
+                            {% for ou in active_units %}{% if ou.unit and ou.unit.section and ou.unit.section not in sections %}{% if sections.append(ou.unit.section) %}{% endif %}{% endif %}{% endfor %}
+                            {{ sections | join(", ") if sections else "–" }}
+                        </td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden xl:table-cell">
                             {{ owner.owner_units | selectattr('valid_to', 'none') | list | length }}
                         </td>
                         <td class="px-4 py-2.5 text-right">

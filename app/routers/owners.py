@@ -5,7 +5,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.auth import get_current_user
 from app.config import settings
@@ -35,7 +35,9 @@ def owners_list(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
 
-    query = db.query(Owner).filter(Owner.is_active == True)  # noqa: E712
+    query = db.query(Owner).filter(Owner.is_active == True).options(  # noqa: E712
+        selectinload(Owner.owner_units).selectinload(OwnerUnit.unit)
+    )
 
     # Search filter — uses name_normalized for diacritics-insensitive search
     if search:

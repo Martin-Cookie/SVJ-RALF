@@ -47,6 +47,8 @@ def units_list(
     request: Request,
     search: str = "",
     building: str = "",
+    space_type: str = "",
+    section: str = "",
     sort: str = "unit_number",
     db: Session = Depends(get_db),
 ):
@@ -74,6 +76,14 @@ def units_list(
     if building:
         query = query.filter(Unit.building_number == building)
 
+    # Space type filter
+    if space_type:
+        query = query.filter(Unit.space_type == space_type)
+
+    # Section filter
+    if section:
+        query = query.filter(Unit.section == section)
+
     # Sorting
     sort_map = {
         "unit_number": Unit.unit_number.asc(),
@@ -95,6 +105,34 @@ def units_list(
     )
     building_list = [b[0] for b in buildings]
 
+    # Space types for filter bubbles (with counts)
+    space_type_rows = (
+        db.query(Unit.space_type)
+        .filter(Unit.space_type != "", Unit.space_type != None)  # noqa: E711
+        .distinct()
+        .order_by(Unit.space_type)
+        .all()
+    )
+    space_type_list = []
+    for row in space_type_rows:
+        st = row[0]
+        cnt = db.query(Unit).filter(Unit.space_type == st).count()
+        space_type_list.append({"value": st, "count": cnt})
+
+    # Sections for filter bubbles (with counts)
+    section_rows = (
+        db.query(Unit.section)
+        .filter(Unit.section != "", Unit.section != None)  # noqa: E711
+        .distinct()
+        .order_by(Unit.section)
+        .all()
+    )
+    section_list = []
+    for row in section_rows:
+        s = row[0]
+        cnt = db.query(Unit).filter(Unit.section == s).count()
+        section_list.append({"value": s, "count": cnt})
+
     total = db.query(Unit).count()
 
     return request.app.state.templates.TemplateResponse(
@@ -105,9 +143,13 @@ def units_list(
             "units": units,
             "search": search,
             "building": building,
+            "space_type": space_type,
+            "section": section,
             "sort": sort,
             "total": total,
             "building_list": building_list,
+            "space_type_list": space_type_list,
+            "section_list": section_list,
         },
     )
 
