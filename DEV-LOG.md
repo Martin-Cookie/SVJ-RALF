@@ -1176,3 +1176,56 @@ Pokračuji od Fáze 1 (Build), iterace 15.
 - [iter 16] Filter bubbles: always include ALL variants (both positive/negative)
 - [iter 16] Test assertions: MUST have negative checks (excluded items not in response)
 - [iter 16] New UI forms: every backend route needs a corresponding UI form
+
+---
+## Iterace 17 – 2026-02-24
+📍 Status: Iterace 17/17 | Feature blok: I (Auto Backup Config + Voting Proxy) | Bloky zbývají: 0
+
+### GATE Status
+- GATE 1: PASSED (243 tests, 12 new for Block I)
+- GATE 2: PASSED (review from 6 roles, 16 findings)
+- GATE 2b: PASSED (HIGH fixed, CRITICAL=0)
+
+### Změny
+- `test:` Auto backup config (6 tests), voting proxy (8 tests)
+- `feat:` GET/POST /sprava/auto-zalohy (config + cleanup), GET/POST /hlasovani/{id}/plne-moci (proxy CRUD)
+- `fix:` Proxy role checks (_require_editor_voting), time validation (HH:MM regex), duplicate proxy test, role test
+
+### Review Findings (all 6 roles)
+
+| # | Role | Finding | Severity | Status |
+|---|------|---------|----------|--------|
+| 1 | CEO | No actual scheduler for auto backups (config only) | MEDIUM | KNOWN (HANDOFF) |
+| 2 | CTO | Time field not validated | MEDIUM | FIXED (regex + range) |
+| 3 | CTO | Proxy model lacks created_at | LOW | KNOWN |
+| 4 | CTO | No audit logging for proxy ops | MEDIUM | KNOWN |
+| 5 | CTO | AutoBackupConfig not in top-level import | LOW | KNOWN |
+| 6 | CPO | No delete confirmation on proxy | MEDIUM | KNOWN |
+| 7 | CPO | No voting status check for proxy management | LOW | KNOWN |
+| 8 | Security | Proxy routes allow any role | HIGH | FIXED (editor_voting) |
+| 9 | Security | Time field unsanitized | LOW | FIXED |
+| 10 | QA | Missing duplicate proxy test | MEDIUM | FIXED |
+| 11 | QA | Missing invalid owner test | LOW | KNOWN |
+| 12 | QA | Missing boundary tests for max_backups | LOW | KNOWN |
+| 13 | QA | Missing is_enabled verification | LOW | KNOWN |
+| 14 | QA | Missing role-based test for proxy | MEDIUM | FIXED |
+| 15 | Designer | Plain empty state in proxy list | LOW | KNOWN |
+| 16 | Designer | Small proxy delete button | LOW | KNOWN |
+
+### Testy
+- Total: 243 | All passing | Auto backup: 6 | Voting proxy: 8
+
+### Verdict tabulka
+
+| Role | Verdict | Odůvodnění | Open |
+|------|---------|------------|------|
+| CEO | APPROVED | Both features implemented, scheduler deferred to HANDOFF | 1 (scheduler) |
+| CTO | APPROVED | Time validation fixed, code follows patterns | 2 (audit log, created_at) |
+| CPO | APPROVED | Clean UI, forms functional | 1 (delete confirm) |
+| Security | APPROVED | Role checks fixed, input validation applied | 0 |
+| QA | APPROVED | 14 tests with negative + role checks, key paths covered | 2 (boundary tests) |
+| Designer | APPROVED | Templates consistent, responsive, dark mode | 1 (empty state) |
+
+### AGENTS.md update
+- [iter 17] Proxy routes: ALWAYS use _require_editor_voting, not bare get_current_user
+- [iter 17] Time fields: validate HH:MM with regex + range check before storing

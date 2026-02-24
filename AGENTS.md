@@ -45,6 +45,8 @@
 - [iter 16] Test negative assertions: KAŽDÝ filter test MUSÍ ověřit že vyloučené položky NEJSOU v odpovědi
 - [iter 16] Backend routes VŽDY potřebují odpovídající UI formulář — backend-only features jsou nepoužitelné
 - [iter 16] File upload: VŽDY mít size limit i na .db restore (read N+1 bytes, check len)
+- [iter 17] Proxy routes: VŽDY _require_editor_voting, NIKDY bare get_current_user pro write operace
+- [iter 17] Time fields: validovat HH:MM regex + range check (0-23:0-59) před uložením
 
 ## Patterns (co funguje dobře v tomto projektu)
 - [iter 1] FastAPI Form() params místo asyncio.new_event_loop() hacku pro form data
