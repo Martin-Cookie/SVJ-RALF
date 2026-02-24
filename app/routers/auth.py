@@ -2,7 +2,7 @@
 from datetime import datetime
 
 import bcrypt
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -30,24 +30,16 @@ def login_page(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def login_submit(request: Request, db: Session = Depends(get_db)):
+def login_submit(
+    request: Request,
+    username: str = Form(""),
+    password: str = Form(""),
+    db: Session = Depends(get_db),
+):
     """Process login form."""
-    import asyncio
-    # We need to read form data synchronously in this sync endpoint
-    # FastAPI allows sync route handlers
-    from starlette.datastructures import FormData
-
-    async def _get_form():
-        return await request.form()
-
-    loop = asyncio.new_event_loop()
-    form = loop.run_until_complete(_get_form())
-    loop.close()
-
-    username = form.get("username", "")
-    password = form.get("password", "")
-
-    user = db.query(User).filter(User.username == username, User.is_active == True).first()  # noqa: E712
+    user = db.query(User).filter(
+        User.username == username, User.is_active == True  # noqa: E712
+    ).first()
     if user and bcrypt.checkpw(password.encode("utf-8"), user.password_hash.encode("utf-8")):
         request.session["user_id"] = user.id
         user.last_login = datetime.utcnow()
@@ -79,24 +71,21 @@ def register_page(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/registrace")
-def register_submit(request: Request, db: Session = Depends(get_db)):
+def register_submit(
+    request: Request,
+    username: str = Form(""),
+    password: str = Form(""),
+    display_name: str = Form(""),
+    db: Session = Depends(get_db),
+):
     """Create first admin user."""
-    import asyncio
-
     user_count = db.query(User).count()
     if user_count > 0:
         return RedirectResponse(url="/login", status_code=303)
 
-    async def _get_form():
-        return await request.form()
-
-    loop = asyncio.new_event_loop()
-    form = loop.run_until_complete(_get_form())
-    loop.close()
-
-    username = form.get("username", "").strip()
-    password = form.get("password", "").strip()
-    display_name = form.get("display_name", "").strip()
+    username = username.strip()
+    password = password.strip()
+    display_name = display_name.strip()
 
     if not username or not password:
         request.session["flash"] = {"type": "error", "message": "Vyplňte všechna povinná pole."}

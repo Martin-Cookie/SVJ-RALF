@@ -5,6 +5,7 @@ import tempfile
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 # Set test env before importing app modules
 os.environ["DATABASE_PATH"] = ":memory:"
@@ -15,10 +16,17 @@ os.environ["GENERATED_DIR"] = tempfile.mkdtemp()
 
 @pytest.fixture
 def db_engine():
-    """Create a fresh in-memory SQLite engine for each test."""
+    """Create a fresh in-memory SQLite engine for each test.
+
+    Uses StaticPool so all connections share the same in-memory database.
+    """
     from app.models import Base
 
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(engine)
     yield engine
     engine.dispose()
@@ -56,12 +64,15 @@ def client(db_engine):
 
 
 @pytest.fixture
-def auth_client(client, db_session):
+def auth_client(client, db_engine):
     """Client with an authenticated admin user."""
+    from sqlalchemy.orm import Session as SASession
+
     from app.models.user import User
 
     import bcrypt
 
+    session = SASession(bind=db_engine)
     pw_hash = bcrypt.hashpw(b"testpass123", bcrypt.gensalt()).decode()
     user = User(
         username="admin",
@@ -70,8 +81,9 @@ def auth_client(client, db_session):
         display_name="Test Admin",
         is_active=True,
     )
-    db_session.add(user)
-    db_session.commit()
+    session.add(user)
+    session.commit()
+    session.close()
 
     # Login
     client.post("/login", data={"username": "admin", "password": "testpass123"})
