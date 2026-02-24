@@ -1,13 +1,15 @@
 """Owner management routes."""
+import io
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
 from app.models.owner import Owner, OwnerUnit, Unit
+from app.models.common import ImportLog
 
 router = APIRouter()
 
@@ -82,6 +84,9 @@ def owners_list(
     )
 
 
+# --- Export (must be before {owner_id}) ---
+
+
 @router.get("/vlastnici/export")
 def owners_export(request: Request, db: Session = Depends(get_db)):
     """Export owners to Excel."""
@@ -107,6 +112,168 @@ def owners_export(request: Request, db: Session = Depends(get_db)):
     )
 
 
+# --- Import routes (must be before {owner_id}) ---
+
+
+@router.get("/vlastnici/import", response_class=HTMLResponse)
+def import_page(request: Request, db: Session = Depends(get_db)):
+    """Show import page with upload form and import history."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    imports = (
+        db.query(ImportLog)
+        .filter(ImportLog.source == "excel-owners")
+        .order_by(ImportLog.created_at.desc())
+        .all()
+    )
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "owners/import.html",
+        {"user": user, "imports": imports, "preview": None, "errors": []},
+    )
+
+
+@router.post("/vlastnici/import", response_class=HTMLResponse)
+def import_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Upload Excel file and show preview."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    from app.services.excel_import import parse_owners_xlsx
+
+    contents = file.file.read()
+    rows, errors = parse_owners_xlsx(io.BytesIO(contents))
+
+    imports = (
+        db.query(ImportLog)
+        .filter(ImportLog.source == "excel-owners")
+        .order_by(ImportLog.created_at.desc())
+        .all()
+    )
+
+    # Store parsed data in session for confirmation
+    if rows and not errors:
+        request.session["import_preview"] = rows
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "owners/import.html",
+        {"user": user, "imports": imports, "preview": rows, "errors": errors},
+    )
+
+
+@router.post("/vlastnici/import/potvrdit")
+def import_confirm(request: Request, db: Session = Depends(get_db)):
+    """Confirm and execute the import."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    rows = request.session.pop("import_preview", [])
+    if not rows:
+        request.session["flash"] = {"type": "error", "message": "Žádná data k importu."}
+        return RedirectResponse(url="/vlastnici/import", status_code=303)
+
+    # Create import log
+    log = ImportLog(
+        source="excel-owners",
+        filename="import.xlsx",
+        records_count=len(rows),
+        status="success",
+    )
+    db.add(log)
+    db.flush()
+
+    created_owners = 0
+    created_units = 0
+
+    for row in rows:
+        owner = Owner(
+            first_name=row.get("first_name", ""),
+            last_name=row.get("last_name", ""),
+            title_before=row.get("title_before", ""),
+            title_after=row.get("title_after", ""),
+            birth_number=row.get("birth_number", ""),
+            ico=row.get("ico", ""),
+            owner_type=row.get("owner_type", "fyzická"),
+            email=row.get("email", ""),
+            phone=row.get("phone", ""),
+            perm_street=row.get("perm_street", ""),
+            perm_city=row.get("perm_city", ""),
+            perm_zip=row.get("perm_zip", ""),
+            corr_street=row.get("corr_street", ""),
+            corr_city=row.get("corr_city", ""),
+            corr_zip=row.get("corr_zip", ""),
+            is_active=True,
+        )
+        db.add(owner)
+        db.flush()
+        created_owners += 1
+
+        unit_number = row.get("unit_number", 0)
+        if unit_number and int(unit_number) > 0:
+            unit = db.query(Unit).filter(Unit.unit_number == int(unit_number)).first()
+            if unit is None:
+                unit = Unit(
+                    unit_number=int(unit_number),
+                    building=row.get("building", ""),
+                    section=row.get("section", ""),
+                    space_type=row.get("space_type", ""),
+                    address=row.get("address", ""),
+                    land_registry_number=row.get("land_registry_number", ""),
+                    room_count=int(row.get("room_count", 0) or 0),
+                    area=float(row.get("area", 0) or 0),
+                    share_scd=int(float(row.get("share_scd", 0) or 0)),
+                )
+                db.add(unit)
+                db.flush()
+                created_units += 1
+
+            ou = OwnerUnit(
+                owner_id=owner.id,
+                unit_id=unit.id,
+                ownership_type=row.get("ownership_type", "Neuvedeno"),
+                ownership_share=str(row.get("ownership_share", "")),
+                voting_weight=float(row.get("voting_weight", 0) or 0),
+            )
+            db.add(ou)
+
+    db.commit()
+
+    request.session["flash"] = {
+        "type": "success",
+        "message": f"Import dokončen: {created_owners} vlastníků, {created_units} jednotek.",
+    }
+    return RedirectResponse(url="/vlastnici", status_code=303)
+
+
+@router.post("/vlastnici/import/{log_id}/smazat")
+def import_delete(log_id: int, request: Request, db: Session = Depends(get_db)):
+    """Delete an import and cascade-delete related data."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    log = db.query(ImportLog).filter(ImportLog.id == log_id).first()
+    if log:
+        db.delete(log)
+        db.commit()
+        request.session["flash"] = {"type": "success", "message": "Import smazán."}
+
+    return RedirectResponse(url="/vlastnici/import", status_code=303)
+
+
+# --- Detail + editing routes (with {owner_id} path param) ---
+
+
 @router.get("/vlastnici/{owner_id}", response_class=HTMLResponse)
 def owner_detail(
     owner_id: int, request: Request, db: Session = Depends(get_db)
@@ -127,6 +294,14 @@ def owner_detail(
         .all()
     )
 
+    # Ownership history (expired links)
+    history_units = (
+        db.query(OwnerUnit)
+        .filter(OwnerUnit.owner_id == owner_id, OwnerUnit.valid_to != None)  # noqa: E711
+        .order_by(OwnerUnit.valid_to.desc())
+        .all()
+    )
+
     # Available units for linking
     available_units = db.query(Unit).order_by(Unit.unit_number).all()
 
@@ -137,8 +312,37 @@ def owner_detail(
             "user": user,
             "owner": owner,
             "owner_units": owner_units,
+            "history_units": history_units,
             "available_units": available_units,
         },
+    )
+
+
+@router.get("/vlastnici/{owner_id}/upravit-formular", response_class=HTMLResponse)
+def owner_edit_form(owner_id: int, request: Request, db: Session = Depends(get_db)):
+    """HTMX: return contact edit form partial."""
+    user = get_current_user(request, db)
+    if user is None:
+        return HTMLResponse("")
+    owner = db.query(Owner).filter(Owner.id == owner_id).first()
+    if owner is None:
+        return HTMLResponse("", status_code=404)
+    return request.app.state.templates.TemplateResponse(
+        request, "partials/owner_contact_form.html", {"owner": owner}
+    )
+
+
+@router.get("/vlastnici/{owner_id}/info", response_class=HTMLResponse)
+def owner_info_display(owner_id: int, request: Request, db: Session = Depends(get_db)):
+    """HTMX: return contact display partial."""
+    user = get_current_user(request, db)
+    if user is None:
+        return HTMLResponse("")
+    owner = db.query(Owner).filter(Owner.id == owner_id).first()
+    if owner is None:
+        return HTMLResponse("", status_code=404)
+    return request.app.state.templates.TemplateResponse(
+        request, "partials/owner_contact_display.html", {"owner": owner}
     )
 
 

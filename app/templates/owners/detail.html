@@ -26,7 +26,7 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Contact info card -->
+        <!-- Contact info card with HTMX inline editing -->
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">Kontaktní údaje</h2>
@@ -125,6 +125,30 @@
                     Přidat
                 </button>
             </form>
+
+            <!-- Ownership history (collapsible) -->
+            {% if history_units %}
+            <details class="mt-4">
+                <summary class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 transition">
+                    Historie vlastnictví ({{ history_units | length }})
+                </summary>
+                <div class="space-y-2 mt-2">
+                    {% for ou in history_units %}
+                    <div class="p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg opacity-60">
+                        <span class="font-medium text-sm">Jednotka {{ ou.unit.unit_number }}</span>
+                        {% if ou.unit.building %}
+                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">({{ ou.unit.building }})</span>
+                        {% endif %}
+                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ ou.ownership_type }}
+                            {% if ou.valid_from %} · od {{ ou.valid_from | datum }}{% endif %}
+                            {% if ou.valid_to %} · do {{ ou.valid_to | datum }}{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
         </div>
     </div>
 </div>

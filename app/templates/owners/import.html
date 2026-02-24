@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Import vlastníků – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center gap-3">
+        <a href="/vlastnici" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-white">Import vlastníků</h1>
+    </div>
+
+    <!-- Upload form -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Nahrát Excel soubor</h2>
+        <form method="post" action="/vlastnici/import" enctype="multipart/form-data" class="space-y-4">
+            <div>
+                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">Vyberte .xlsx soubor s daty vlastníků</label>
+                <input type="file" name="file" accept=".xlsx,.xls"
+                       class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 dark:file:bg-primary-900/40 dark:file:text-primary-300">
+            </div>
+            <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                Nahrát a zobrazit náhled
+            </button>
+        </form>
+    </div>
+
+    <!-- Errors -->
+    {% if errors %}
+    <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-4">
+        <h3 class="text-sm font-medium text-red-700 dark:text-red-300 mb-2">Chyby při zpracování</h3>
+        <ul class="list-disc list-inside text-sm text-red-600 dark:text-red-400 space-y-1">
+            {% for err in errors %}
+            <li>{{ err }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- Preview -->
+    {% if preview %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+                Náhled importu ({{ preview | length }} záznamů)
+            </h2>
+            <form method="post" action="/vlastnici/import/potvrdit">
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition">
+                    Potvrdit import
+                </button>
+            </form>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
+                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">#</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Příjmení</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Jméno</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Typ</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Email</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Jednotka</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
+                    {% for row in preview[:20] %}
+                    <tr>
+                        <td class="px-3 py-2 text-gray-500">{{ loop.index }}</td>
+                        <td class="px-3 py-2">{{ row.last_name }}</td>
+                        <td class="px-3 py-2">{{ row.first_name }}</td>
+                        <td class="px-3 py-2">{{ row.owner_type }}</td>
+                        <td class="px-3 py-2 text-gray-500">{{ row.email or "–" }}</td>
+                        <td class="px-3 py-2 text-gray-500">{{ row.unit_number or "–" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% if preview | length > 20 %}
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2 px-3">... a dalších {{ preview | length - 20 }} záznamů</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Import history -->
+    {% if imports %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Historie importů</h2>
+        <div class="space-y-2">
+            {% for imp in imports %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                <div>
+                    <span class="text-sm font-medium">{{ imp.filename }}</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">{{ imp.records_count }} záznamů</span>
+                    <span class="text-xs text-gray-400 ml-2">{{ imp.created_at | datum }}</span>
+                </div>
+                <form method="post" action="/vlastnici/import/{{ imp.id }}/smazat" class="inline">
+                    <button type="submit" class="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+                        Smazat
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
