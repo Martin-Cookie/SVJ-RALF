@@ -255,3 +255,58 @@ test.describe('Interaction Check – Blok 4 (Hlasování)', () => {
     await expect(page).toHaveURL(/\/hlasovani/);
   });
 });
+
+test.describe('Interaction Check – Blok 5 (Zpracování hlasování)', () => {
+  let votingId: string;
+
+  test.beforeEach(async ({ page }) => {
+    await loginOrRegister(page);
+
+    // Create a voting with an item and activate it
+    await page.goto('/hlasovani/nova');
+    await page.fill('input[name="name"]', 'Zpracování E2E');
+    await page.click('button[type="submit"]');
+    await page.waitForURL(/\/hlasovani\/\d+/);
+
+    // Extract voting ID from URL
+    const url = page.url();
+    votingId = url.match(/\/hlasovani\/(\d+)/)?.[1] || '';
+
+    // Add a voting item
+    await page.fill('input[name="text"]', 'Schválení plánu');
+    await page.click('button:has-text("Přidat bod")');
+    await page.waitForLoadState('networkidle');
+
+    // Activate (Spustit bez lístků)
+    await page.click('button:has-text("Spustit")');
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('processing page loads', async ({ page }) => {
+    await page.goto(`/hlasovani/${votingId}/zpracovani`);
+    await expect(page.getByRole('heading', { name: 'Zpracování lístků' })).toBeVisible();
+  });
+
+  test('unsubmitted page loads', async ({ page }) => {
+    await page.goto(`/hlasovani/${votingId}/neodevzdane`);
+    await expect(page.getByRole('heading', { name: 'Neodevzdané lístky' })).toBeVisible();
+  });
+
+  test('voting detail shows results section', async ({ page }) => {
+    await page.goto(`/hlasovani/${votingId}`);
+    await expect(page.getByText('Schválení plánu')).toBeVisible();
+    await expect(page.getByText('Zpracování E2E')).toBeVisible();
+  });
+
+  test('back navigation from processing page works', async ({ page }) => {
+    await page.goto(`/hlasovani/${votingId}/zpracovani`);
+    await page.click(`a[href="/hlasovani/${votingId}"]`);
+    await expect(page).toHaveURL(new RegExp(`/hlasovani/${votingId}`));
+  });
+
+  test('back navigation from unsubmitted page works', async ({ page }) => {
+    await page.goto(`/hlasovani/${votingId}/neodevzdane`);
+    await page.click(`a[href="/hlasovani/${votingId}"]`);
+    await expect(page).toHaveURL(new RegExp(`/hlasovani/${votingId}`));
+  });
+});
