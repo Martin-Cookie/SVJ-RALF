@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Správa uživatelů – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Správa uživatelů</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Celkem {{ users | length }} uživatelů</p>
+        </div>
+        <a href="/sprava" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">← Zpět na správu</a>
+    </div>
+
+    <!-- Create User Form -->
+    <details class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+        <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-slate-700/30 rounded-xl transition">
+            + Nový uživatel
+        </summary>
+        <form method="post" action="/sprava/uzivatele/novy" class="p-4 border-t border-gray-200 dark:border-slate-700 space-y-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Uživatelské jméno</label>
+                    <input type="text" name="username" required
+                           class="w-full h-9 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Zobrazované jméno</label>
+                    <input type="text" name="display_name"
+                           class="w-full h-9 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Heslo (min. 6 znaků)</label>
+                    <input type="password" name="password" required minlength="6"
+                           class="w-full h-9 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Role</label>
+                    <select name="role"
+                            class="w-full h-9 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 transition">
+                        <option value="reader">Čtenář</option>
+                        <option value="editor">Editor</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">Vytvořit uživatele</button>
+            </div>
+        </form>
+    </details>
+
+    <!-- User List -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-slate-700/50">
+                <tr>
+                    <th class="text-left px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Jméno</th>
+                    <th class="text-left px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Login</th>
+                    <th class="text-left px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Role</th>
+                    <th class="text-left px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Poslední přihlášení</th>
+                    <th class="text-left px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Stav</th>
+                    <th class="text-right px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Akce</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
+                {% for u in users %}
+                <tr class="{% if not u.is_active %}opacity-50{% endif %}">
+                    <td class="px-4 py-3 text-gray-900 dark:text-white font-medium">{{ u.display_name }}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ u.username }}</td>
+                    <td class="px-4 py-3">
+                        {% if u.id != user.id %}
+                        <form method="post" action="/sprava/uzivatele/{{ u.id }}/role" class="inline">
+                            <select name="role" onchange="this.form.submit()"
+                                    class="h-7 px-2 text-xs bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded transition">
+                                <option value="reader" {% if u.role == 'reader' %}selected{% endif %}>Čtenář</option>
+                                <option value="editor" {% if u.role == 'editor' %}selected{% endif %}>Editor</option>
+                                <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Admin</option>
+                            </select>
+                        </form>
+                        {% else %}
+                        <span class="text-xs px-2 py-0.5 rounded bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 font-medium">{{ u.role }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">
+                        {% if u.last_login %}{{ u.last_login.strftime('%d.%m.%Y %H:%M') }}{% else %}—{% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if u.is_active %}
+                        <span class="text-xs px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">Aktivní</span>
+                        {% else %}
+                        <span class="text-xs px-2 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">Neaktivní</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        {% if u.id != user.id %}
+                        <div class="flex items-center justify-end gap-1">
+                            <!-- Reset password -->
+                            <form method="post" action="/sprava/uzivatele/{{ u.id }}/heslo" class="inline">
+                                <input type="hidden" name="password" value="">
+                                <button type="button" onclick="var pw=prompt('Nové heslo (min. 6 znaků):'); if(pw && pw.length>=6){this.previousElementSibling.value=pw; this.form.submit();}"
+                                        class="p-1 text-gray-400 hover:text-primary-600 transition" title="Reset hesla">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                                </button>
+                            </form>
+                            <!-- Toggle active -->
+                            <form method="post" action="/sprava/uzivatele/{{ u.id }}/stav" class="inline">
+                                <button type="submit"
+                                        class="p-1 {% if u.is_active %}text-gray-400 hover:text-red-500{% else %}text-gray-400 hover:text-green-500{% endif %} transition"
+                                        title="{% if u.is_active %}Deaktivovat{% else %}Aktivovat{% endif %}">
+                                    {% if u.is_active %}
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                                    {% else %}
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    {% endif %}
+                                </button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <span class="text-xs text-gray-400">Vy</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

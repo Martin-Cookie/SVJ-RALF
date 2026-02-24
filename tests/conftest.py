@@ -88,3 +88,57 @@ def auth_client(client, db_engine):
     # Login
     client.post("/login", data={"username": "admin", "password": "testpass123"})
     return client
+
+
+@pytest.fixture
+def editor_client(client, db_engine):
+    """Client with an authenticated editor user."""
+    from sqlalchemy.orm import Session as SASession
+
+    from app.models.user import User
+
+    import bcrypt
+
+    session = SASession(bind=db_engine)
+    pw_hash = bcrypt.hashpw(b"testpass123", bcrypt.gensalt()).decode()
+    user = User(
+        username="editor",
+        password_hash=pw_hash,
+        role="editor",
+        display_name="Test Editor",
+        is_active=True,
+    )
+    session.add(user)
+    session.commit()
+    session.close()
+
+    # Login
+    client.post("/login", data={"username": "editor", "password": "testpass123"})
+    return client
+
+
+@pytest.fixture
+def reader_client(client, db_engine):
+    """Client with an authenticated reader user."""
+    from sqlalchemy.orm import Session as SASession
+
+    from app.models.user import User
+
+    import bcrypt
+
+    session = SASession(bind=db_engine)
+    pw_hash = bcrypt.hashpw(b"testpass123", bcrypt.gensalt()).decode()
+    user = User(
+        username="reader",
+        password_hash=pw_hash,
+        role="reader",
+        display_name="Test Reader",
+        is_active=True,
+    )
+    session.add(user)
+    session.commit()
+    session.close()
+
+    # Login
+    client.post("/login", data={"username": "reader", "password": "testpass123"})
+    return client

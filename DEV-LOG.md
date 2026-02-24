@@ -748,3 +748,38 @@ Fáze 3 (Visual Polish) + Fáze 4 (Final Validation) kompletní. Všech 6 rolí 
 📍 RALF COMPLETE | Iterací: 9 | All roles: APPROVED
 
 ---
+## RE-ENTRY AUDIT – 2026-02-24 (po COMPLETE revokaci)
+
+### Důvod re-entry
+Důkladný audit PRD odhalil významné chybějící features. Předchozí COMPLETE byl předčasný — review role neporovnávaly implementaci detailně s PRD endpointy.
+
+### Stav projektu
+- Předchozích iterací: 9
+- Feature bloky hotové: 1-7, 10 (základní verze 8-9)
+- Feature bloky NEÚPLNÉ: 8-9 (administrace — chybí user mgmt, audit log, backup, smazání, export, bulk edits)
+- Testy: 113/113 unit + 48/48 E2E = 161 pass
+
+### Chybějící PRD features
+
+| # | Feature | PRD odkaz | Severity |
+|---|---------|-----------|----------|
+| 1 | Správa uživatelů (/sprava/uzivatele) — CRUD, role change, password reset | Blok 8 úkol 8 | CRITICAL |
+| 2 | Role-based access (admin/editor/reader) — UI visibility dle role | Blok 1 úkol 5 | CRITICAL |
+| 3 | Audit log stránka (/sprava/audit) — filtrování, admin-only | Blok 8 úkol 9 | CRITICAL |
+| 4 | Backup/restore — ZIP create, 3 restore methods, auto-backup | Blok 8 úkoly 7-11 | CRITICAL |
+| 5 | Smazání dat (/sprava/smazat-data) — kategorie, potvrzení DELETE | Blok 9 úkol 1 | MEDIUM |
+| 6 | Export dat z admin (/sprava/export) — Excel/CSV/ZIP | Blok 9 úkol 2 | MEDIUM |
+| 7 | Hromadné úpravy (/sprava/hromadne-upravy) | Blok 9 úkol 3 | MEDIUM |
+| 8 | Selektivní aktualizace v sync (checkboxy) | Blok 7 úkol 9 | MEDIUM |
+| 9 | Výměna vlastníků v sync | Blok 7 úkol 15 | MEDIUM |
+| 10 | Voting Excel import (4-step flow) | Blok 5 úkol 9 | MEDIUM |
+
+### Plán — nové feature bloky
+
+**Blok A (Iterace 10):** Správa uživatelů + Role-based access
+**Blok B (Iterace 11):** Audit log + Backup/Restore
+**Blok C (Iterace 12):** Admin advanced — smazání dat, export, hromadné úpravy
+
+Pokračuji od Fáze 1 (Build), iterace 10, blok A.
+
+---
