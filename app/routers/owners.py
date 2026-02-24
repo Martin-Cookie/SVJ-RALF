@@ -100,6 +100,15 @@ def owners_list(
     ).count()
     bez_telefonu_count = total - s_telefonem_count
 
+    # Distinct ownership types for filter dropdown
+    ownership_types = [
+        r[0] for r in db.query(OwnerUnit.ownership_type).filter(
+            OwnerUnit.ownership_type.isnot(None),
+            OwnerUnit.ownership_type != "",
+            OwnerUnit.valid_to.is_(None),
+        ).distinct().order_by(OwnerUnit.ownership_type).all()
+    ]
+
     # Build current filter URL for back_url chain
     filter_params = []
     if search:
@@ -133,6 +142,7 @@ def owners_list(
             "s_telefonem_count": s_telefonem_count,
             "bez_telefonu_count": bez_telefonu_count,
             "current_url": current_url,
+            "ownership_types": ownership_types,
         },
     )
 

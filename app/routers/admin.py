@@ -645,7 +645,12 @@ async def backup_restore_db_file(
         request.session["flash"] = {"type": "error", "message": "Nahrajte soubor .db (SQLite databázi)."}
         return RedirectResponse(url="/sprava/zalohy", status_code=303)
 
-    content = await file.read()
+    # Read with size limit (500 MB)
+    _MAX_DB_SIZE = 500 * 1024 * 1024
+    content = await file.read(_MAX_DB_SIZE + 1)
+    if len(content) > _MAX_DB_SIZE:
+        request.session["flash"] = {"type": "error", "message": "Soubor je příliš velký (max 500 MB)."}
+        return RedirectResponse(url="/sprava/zalohy", status_code=303)
 
     # Validate it's a real SQLite file (magic bytes: "SQLite format 3\000")
     if not content.startswith(b"SQLite format 3\x00"):

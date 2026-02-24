@@ -11,7 +11,7 @@
         <a href="/sprava" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">← Zpět na správu</a>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <!-- Create Backup -->
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <h2 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Vytvořit zálohu</h2>
@@ -27,9 +27,9 @@
             </form>
         </div>
 
-        <!-- Restore Backup -->
+        <!-- Restore from ZIP -->
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-            <h2 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Obnovit ze zálohy</h2>
+            <h2 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Obnovit ze ZIP</h2>
             <form method="post" action="/sprava/zaloha/obnovit" enctype="multipart/form-data" class="space-y-3">
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">ZIP soubor se zálohou</label>
@@ -40,6 +40,22 @@
                     Obnovit
                 </button>
                 <p class="text-xs text-gray-500">Před obnovou se automaticky vytvoří pojistná záloha.</p>
+            </form>
+        </div>
+
+        <!-- Restore from .db file -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+            <h2 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Obnovit z .db souboru</h2>
+            <form method="post" action="/sprava/zaloha/obnovit-soubor" enctype="multipart/form-data" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">SQLite databázový soubor</label>
+                    <input type="file" name="file" accept=".db"
+                           class="w-full text-sm text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 transition">
+                </div>
+                <button type="submit" class="w-full px-4 py-2 text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 rounded-lg transition">
+                    Obnovit
+                </button>
+                <p class="text-xs text-gray-500">Nahrajte .db soubor (max 500 MB). Pojistná záloha se vytvoří automaticky.</p>
             </form>
         </div>
     </div>

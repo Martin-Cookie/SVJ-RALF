@@ -49,8 +49,18 @@ def test_filter_by_ownership_type(auth_client, db_engine):
     resp = auth_client.get("/vlastnici?vlastnictvi=SJM")
     assert resp.status_code == 200
     assert "Novák" in resp.text
-    # Should NOT contain owners without SJM ownership
-    # (but may contain them if filter is not implemented yet)
+    # SJM filter should exclude owners with different ownership types
+    assert "Dvořák" not in resp.text  # SJVL, not SJM
+    assert "Firma" not in resp.text  # no ownership link at all
+
+
+def test_filter_by_ownership_type_vl(auth_client, db_engine):
+    """Filter by VL ownership type."""
+    data = _create_owners_with_variety(db_engine)
+    resp = auth_client.get("/vlastnici?vlastnictvi=VL")
+    assert resp.status_code == 200
+    assert "Svobodová" in resp.text
+    assert "Novák" not in resp.text  # SJM, not VL
 
 
 def test_filter_with_email(auth_client, db_engine):
@@ -58,8 +68,11 @@ def test_filter_with_email(auth_client, db_engine):
     data = _create_owners_with_variety(db_engine)
     resp = auth_client.get("/vlastnici?kontakt=s_emailem")
     assert resp.status_code == 200
-    # Should contain Jan (has email) and Marie (has email)
-    assert "Novák" in resp.text or "Svobodová" in resp.text
+    # Both Jan (has email) and Marie (has email) should appear
+    assert "Novák" in resp.text
+    assert "Svobodová" in resp.text
+    # Owners without email should be excluded
+    assert "Firma" not in resp.text
 
 
 def test_filter_without_email(auth_client, db_engine):
@@ -67,6 +80,12 @@ def test_filter_without_email(auth_client, db_engine):
     data = _create_owners_with_variety(db_engine)
     resp = auth_client.get("/vlastnici?kontakt=bez_emailu")
     assert resp.status_code == 200
+    # Pavel (no email) and Firma (no email) should appear
+    assert "Dvořák" in resp.text
+    assert "Firma" in resp.text
+    # Owners with email should be excluded
+    assert "Novák" not in resp.text
+    assert "Svobodová" not in resp.text
 
 
 def test_filter_with_phone(auth_client, db_engine):
@@ -74,13 +93,37 @@ def test_filter_with_phone(auth_client, db_engine):
     data = _create_owners_with_variety(db_engine)
     resp = auth_client.get("/vlastnici?kontakt=s_telefonem")
     assert resp.status_code == 200
+    # Jan (has phone) and Pavel (has phone)
+    assert "Novák" in resp.text
+    assert "Dvořák" in resp.text
+    # Owners without phone should be excluded
+    assert "Svobodová" not in resp.text
+    assert "Firma" not in resp.text
+
+
+def test_filter_without_phone(auth_client, db_engine):
+    """Filter owners that have no phone."""
+    data = _create_owners_with_variety(db_engine)
+    resp = auth_client.get("/vlastnici?kontakt=bez_telefonu")
+    assert resp.status_code == 200
+    # Marie (no phone) and Firma (no phone)
+    assert "Svobodová" in resp.text
+    assert "Firma" in resp.text
+    # Owners with phone should be excluded
+    assert "Novák" not in resp.text
+    assert "Dvořák" not in resp.text
 
 
 def test_filter_combination(auth_client, db_engine):
-    """Multiple filters combined."""
+    """Multiple filters combined: physical + has email."""
     data = _create_owners_with_variety(db_engine)
     resp = auth_client.get("/vlastnici?typ=physical&kontakt=s_emailem")
     assert resp.status_code == 200
+    # Physical + has email: Jan and Marie
+    assert "Novák" in resp.text
+    assert "Svobodová" in resp.text
+    # Legal entity excluded by type filter
+    assert "Firma" not in resp.text
 
 
 def test_back_url_preserved_on_detail(auth_client, db_engine):
@@ -90,8 +133,8 @@ def test_back_url_preserved_on_detail(auth_client, db_engine):
         f"/vlastnici/{data['o1_id']}?back_url=/vlastnici?typ=physical%26kontakt=s_emailem"
     )
     assert resp.status_code == 200
-    # Back link should contain the original filter URL
-    assert "back_url" in resp.text or "typ=physical" in resp.text
+    # The back link href should contain the filter URL
+    assert "typ=physical" in resp.text
 
 
 def test_owner_list_filter_bubbles_show_counts(auth_client, db_engine):
@@ -99,6 +142,18 @@ def test_owner_list_filter_bubbles_show_counts(auth_client, db_engine):
     data = _create_owners_with_variety(db_engine)
     resp = auth_client.get("/vlastnici")
     assert resp.status_code == 200
-    # Should show some count indicator for filtered views
+    # Should show contact filter bubbles
     text = resp.text.lower()
-    assert "email" in text or "telefon" in text or "kontakt" in text
+    assert "email" in text
+    assert "telefon" in text
+
+
+def test_ownership_type_dropdown_shows(auth_client, db_engine):
+    """Ownership type dropdown appears when ownership types exist."""
+    data = _create_owners_with_variety(db_engine)
+    resp = auth_client.get("/vlastnici")
+    assert resp.status_code == 200
+    # Should show ownership type options in the dropdown
+    assert "SJM" in resp.text
+    assert "VL" in resp.text
+    assert "SJVL" in resp.text
