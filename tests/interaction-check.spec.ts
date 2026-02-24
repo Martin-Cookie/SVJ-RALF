@@ -178,3 +178,80 @@ test.describe('Interaction Check – Blok 3 (Jednotky)', () => {
     await expect(page).toHaveURL(/\/jednotky/);
   });
 });
+
+test.describe('Interaction Check – Blok 4 (Hlasování)', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginOrRegister(page);
+  });
+
+  test('voting page loads with empty state', async ({ page }) => {
+    await page.goto('/hlasovani');
+    await expect(page.getByRole('heading', { name: 'Hlasování', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Žádná hlasování' })).toBeVisible();
+  });
+
+  test('voting sidebar link navigates correctly', async ({ page }) => {
+    await page.click('#sidebar a[href="/hlasovani"]');
+    await expect(page).toHaveURL(/\/hlasovani/);
+    await expect(page.getByRole('heading', { name: 'Hlasování', exact: true })).toBeVisible();
+  });
+
+  test('voting filter bubbles are visible', async ({ page }) => {
+    await page.goto('/hlasovani');
+    await expect(page.getByText('Vše (0)')).toBeVisible();
+    await expect(page.getByText('Koncept (0)')).toBeVisible();
+    await expect(page.getByText('Aktivní (0)')).toBeVisible();
+    await expect(page.getByText('Uzavřené (0)')).toBeVisible();
+    await expect(page.getByText('Zrušené (0)')).toBeVisible();
+  });
+
+  test('create voting form works', async ({ page }) => {
+    await page.goto('/hlasovani/nova');
+    await expect(page.getByRole('heading', { name: 'Nové hlasování' })).toBeVisible();
+
+    // Fill and submit form
+    await page.fill('input[name="name"]', 'Test hlasování E2E');
+    await page.fill('input[name="quorum"]', '60');
+    await page.click('button[type="submit"]');
+
+    // Should redirect to detail page
+    await page.waitForURL(/\/hlasovani\/\d+/);
+    await expect(page.getByRole('heading', { name: 'Test hlasování E2E' })).toBeVisible();
+  });
+
+  test('voting detail: add and delete items', async ({ page }) => {
+    // Create a voting first
+    await page.goto('/hlasovani/nova');
+    await page.fill('input[name="name"]', 'Bod test');
+    await page.click('button[type="submit"]');
+    await page.waitForURL(/\/hlasovani\/\d+/);
+
+    // Add an item
+    await page.fill('input[name="text"]', 'Schválení rozpočtu');
+    await page.click('button:has-text("Přidat bod")');
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText('Schválení rozpočtu')).toBeVisible();
+    await expect(page.getByText('Bod 1', { exact: true })).toBeVisible();
+  });
+
+  test('voting detail: change status koncept → aktivní', async ({ page }) => {
+    // Create a voting
+    await page.goto('/hlasovani/nova');
+    await page.fill('input[name="name"]', 'Status test');
+    await page.click('button[type="submit"]');
+    await page.waitForURL(/\/hlasovani\/\d+/);
+
+    // Click Spustit button to activate
+    await page.click('button:has-text("Spustit")');
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText('aktivní', { exact: true })).toBeVisible();
+  });
+
+  test('keyboard shortcut G+H navigates to voting', async ({ page }) => {
+    await page.keyboard.press('g');
+    await page.waitForTimeout(100);
+    await page.keyboard.press('h');
+    await page.waitForTimeout(500);
+    await expect(page).toHaveURL(/\/hlasovani/);
+  });
+});
