@@ -10,7 +10,7 @@
         <div>
             <h1 class="text-xl font-bold text-gray-900 dark:text-white">Jednotka {{ unit.unit_number }}</h1>
             <p class="text-sm text-gray-500 dark:text-gray-400">
-                {% if unit.building %}Budova {{ unit.building }}{% endif %}
+                {% if unit.building_number %}Budova {{ unit.building_number }}{% endif %}
                 {% if unit.section %} · {{ unit.section }}{% endif %}
             </p>
         </div>
@@ -27,7 +27,7 @@
                 </div>
                 <div>
                     <dt class="text-xs text-gray-500 dark:text-gray-400">Budova</dt>
-                    <dd class="font-medium">{{ unit.building or "–" }}</dd>
+                    <dd class="font-medium">{{ unit.building_number or "–" }}</dd>
                 </div>
                 <div>
                     <dt class="text-xs text-gray-500 dark:text-gray-400">Sekce</dt>
@@ -39,11 +39,11 @@
                 </div>
                 <div>
                     <dt class="text-xs text-gray-500 dark:text-gray-400">Plocha</dt>
-                    <dd class="font-medium">{{ unit.area | cislo }} m²</dd>
+                    <dd class="font-medium">{{ unit.floor_area | cislo if unit.floor_area else "–" }} m²</dd>
                 </div>
                 <div>
                     <dt class="text-xs text-gray-500 dark:text-gray-400">Podíl SČD</dt>
-                    <dd class="font-medium">{{ unit.share_scd | cislo }}</dd>
+                    <dd class="font-medium">{{ unit.podil_scd | cislo if unit.podil_scd else "–" }}</dd>
                 </div>
                 <div>
                     <dt class="text-xs text-gray-500 dark:text-gray-400">Počet místností</dt>
@@ -51,7 +51,7 @@
                 </div>
                 <div>
                     <dt class="text-xs text-gray-500 dark:text-gray-400">LV</dt>
-                    <dd class="font-medium">{{ unit.land_registry_number or "–" }}</dd>
+                    <dd class="font-medium">{{ unit.lv_number or "–" }}</dd>
                 </div>
                 {% if unit.address %}
                 <div class="col-span-2">
@@ -75,14 +75,14 @@
                             {{ ou.owner.display_name }}
                         </a>
                         <div class="text-xs text-gray-500 dark:text-gray-400">
-                            {{ ou.ownership_type }}
-                            {% if ou.ownership_share %} · {{ ou.ownership_share }}{% endif %}
+                            {{ ou.ownership_type or "–" }}
+                            {% if ou.votes %} · {{ ou.votes }} hlasů{% endif %}
                         </div>
                     </div>
                     <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full
-                        {% if ou.owner.owner_type == 'fyzická' %}bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300
+                        {% if ou.owner.owner_type == 'physical' %}bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300
                         {% else %}bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300{% endif %}">
-                        {{ ou.owner.owner_type }}
+                        {% if ou.owner.owner_type == 'physical' %}Fyzická{% else %}Právnická{% endif %}
                     </span>
                 </div>
                 {% endfor %}
@@ -104,7 +104,7 @@
                             {{ ou.owner.display_name }}
                         </a>
                         <div class="text-xs text-gray-500 dark:text-gray-400">
-                            {{ ou.ownership_type }}
+                            {{ ou.ownership_type or "–" }}
                             {% if ou.valid_from %} · od {{ ou.valid_from | datum }}{% endif %}
                             {% if ou.valid_to %} · do {{ ou.valid_to | datum }}{% endif %}
                         </div>

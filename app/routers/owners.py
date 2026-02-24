@@ -1,9 +1,7 @@
 """Owner management routes."""
-import io
-import json
 import os
+import shutil
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
@@ -15,7 +13,7 @@ from app.database import get_db
 from app.models.owner import Owner, OwnerUnit, Unit
 from app.models.common import ImportLog
 
-# Temp directory for import previews (cookie is too small for large datasets)
+# Temp directory for uploaded Excel files
 _IMPORT_TEMP_DIR = os.path.join(settings.UPLOAD_DIR, "_import_temp")
 os.makedirs(_IMPORT_TEMP_DIR, exist_ok=True)
 
@@ -27,7 +25,7 @@ def owners_list(
     request: Request,
     search: str = "",
     typ: str = "",
-    sort: str = "last_name",
+    sort: str = "name",
     db: Session = Depends(get_db),
 ):
     """List all owners with search/filter/sort."""
@@ -37,15 +35,16 @@ def owners_list(
 
     query = db.query(Owner).filter(Owner.is_active == True)  # noqa: E712
 
-    # Search filter
+    # Search filter — uses name_normalized for diacritics-insensitive search
     if search:
         term = f"%{search}%"
         query = query.filter(
             (Owner.first_name.ilike(term))
             | (Owner.last_name.ilike(term))
+            | (Owner.name_with_titles.ilike(term))
+            | (Owner.name_normalized.ilike(term))
             | (Owner.email.ilike(term))
-            | (Owner.birth_number.ilike(term))
-            | (Owner.ico.ilike(term))
+            | (Owner.company_id.ilike(term))
         )
 
     # Type filter
@@ -54,11 +53,12 @@ def owners_list(
 
     # Sorting
     sort_map = {
+        "name": Owner.name_normalized.asc(),
         "last_name": Owner.last_name.asc(),
         "first_name": Owner.first_name.asc(),
         "created_at": Owner.created_at.desc(),
     }
-    order = sort_map.get(sort, Owner.last_name.asc())
+    order = sort_map.get(sort, Owner.name_normalized.asc())
     query = query.order_by(order)
 
     owners = query.all()
@@ -67,12 +67,12 @@ def owners_list(
     total = db.query(Owner).filter(Owner.is_active == True).count()  # noqa: E712
     fyzicka_count = (
         db.query(Owner)
-        .filter(Owner.is_active == True, Owner.owner_type == "fyzická")  # noqa: E712
+        .filter(Owner.is_active == True, Owner.owner_type == "physical")  # noqa: E712
         .count()
     )
     pravnicka_count = (
         db.query(Owner)
-        .filter(Owner.is_active == True, Owner.owner_type == "právnická")  # noqa: E712
+        .filter(Owner.is_active == True, Owner.owner_type == "legal")  # noqa: E712
         .count()
     )
 
@@ -105,7 +105,7 @@ def owners_export(request: Request, db: Session = Depends(get_db)):
     owners = (
         db.query(Owner)
         .filter(Owner.is_active == True)  # noqa: E712
-        .order_by(Owner.last_name)
+        .order_by(Owner.name_normalized)
         .all()
     )
 
@@ -150,15 +150,21 @@ def import_upload(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    """Upload Excel file and show preview."""
+    """Upload Excel file, save to disk, show preview."""
     user = get_current_user(request, db)
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
 
-    from app.services.excel_import import parse_owners_xlsx
+    from app.services.excel_import import preview_owners_from_excel
 
-    contents = file.file.read()
-    rows, errors = parse_owners_xlsx(io.BytesIO(contents))
+    # Save uploaded file to temp directory
+    token = str(uuid.uuid4())
+    temp_path = os.path.join(_IMPORT_TEMP_DIR, f"{token}.xlsx")
+    with open(temp_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    # Parse and preview
+    result = preview_owners_from_excel(temp_path)
 
     imports = (
         db.query(ImportLog)
@@ -167,110 +173,74 @@ def import_upload(
         .all()
     )
 
-    # Store parsed data in temp file (cookie session is too small for large datasets)
-    if rows:
-        token = str(uuid.uuid4())
-        temp_path = os.path.join(_IMPORT_TEMP_DIR, f"{token}.json")
-        with open(temp_path, "w", encoding="utf-8") as f:
-            json.dump(rows, f, ensure_ascii=False)
+    # Store token in session for confirm step
+    if result["rows_processed"] > 0:
         request.session["import_token"] = token
+        request.session["import_filename"] = file.filename or "import.xlsx"
 
     return request.app.state.templates.TemplateResponse(
         request,
         "owners/import.html",
-        {"user": user, "imports": imports, "preview": rows, "errors": errors},
+        {
+            "user": user,
+            "imports": imports,
+            "preview": result,
+            "errors": result["errors"],
+        },
     )
 
 
 @router.post("/vlastnici/import/potvrdit")
 def import_confirm(request: Request, db: Session = Depends(get_db)):
-    """Confirm and execute the import."""
+    """Confirm and execute the import from the saved Excel file."""
     user = get_current_user(request, db)
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
 
+    from app.services.excel_import import import_owners_from_excel
+
     token = request.session.pop("import_token", "")
-    rows = []
-    if token:
-        temp_path = os.path.join(_IMPORT_TEMP_DIR, f"{token}.json")
-        if os.path.exists(temp_path):
-            with open(temp_path, "r", encoding="utf-8") as f:
-                rows = json.load(f)
-            os.remove(temp_path)
-    if not rows:
+    filename = request.session.pop("import_filename", "import.xlsx")
+
+    if not token:
         request.session["flash"] = {"type": "error", "message": "Žádná data k importu."}
         return RedirectResponse(url="/vlastnici/import", status_code=303)
 
-    # Create import log
-    log = ImportLog(
-        source="excel-owners",
-        filename="import.xlsx",
-        records_count=len(rows),
-        status="success",
-    )
-    db.add(log)
-    db.flush()
+    temp_path = os.path.join(_IMPORT_TEMP_DIR, f"{token}.xlsx")
+    if not os.path.exists(temp_path):
+        request.session["flash"] = {"type": "error", "message": "Soubor importu nenalezen."}
+        return RedirectResponse(url="/vlastnici/import", status_code=303)
 
-    created_owners = 0
-    created_units = 0
+    try:
+        # Run the actual import
+        result = import_owners_from_excel(db, temp_path)
 
-    for row in rows:
-        owner = Owner(
-            first_name=row.get("first_name", ""),
-            last_name=row.get("last_name", ""),
-            title_before=row.get("title_before", ""),
-            title_after=row.get("title_after", ""),
-            birth_number=row.get("birth_number", ""),
-            ico=row.get("ico", ""),
-            owner_type=row.get("owner_type", "fyzická"),
-            email=row.get("email", ""),
-            phone=row.get("phone", ""),
-            perm_street=row.get("perm_street", ""),
-            perm_city=row.get("perm_city", ""),
-            perm_zip=row.get("perm_zip", ""),
-            corr_street=row.get("corr_street", ""),
-            corr_city=row.get("corr_city", ""),
-            corr_zip=row.get("corr_zip", ""),
-            is_active=True,
+        # Create import log
+        log = ImportLog(
+            source="excel-owners",
+            filename=filename,
+            records_count=result["rows_processed"],
+            status="success",
         )
-        db.add(owner)
-        db.flush()
-        created_owners += 1
+        db.add(log)
+        db.commit()
 
-        unit_number = str(row.get("unit_number", "")).strip()
-        if unit_number and unit_number != "0":
-            unit = db.query(Unit).filter(Unit.unit_number == unit_number).first()
-            if unit is None:
-                unit = Unit(
-                    unit_number=unit_number,
-                    building=row.get("building", ""),
-                    section=row.get("section", ""),
-                    space_type=row.get("space_type", ""),
-                    address=row.get("address", ""),
-                    land_registry_number=row.get("land_registry_number", ""),
-                    room_count=int(row.get("room_count", 0) or 0),
-                    area=float(row.get("area", 0) or 0),
-                    share_scd=int(float(row.get("share_scd", 0) or 0)),
-                )
-                db.add(unit)
-                db.flush()
-                created_units += 1
+        request.session["flash"] = {
+            "type": "success",
+            "message": (
+                f"Import dokončen: {result['owners_created']} vlastníků, "
+                f"{result['units_created']} jednotek, "
+                f"{result['links_created']} vazeb."
+            ),
+        }
+    except Exception as e:
+        db.rollback()
+        request.session["flash"] = {"type": "error", "message": f"Chyba importu: {e}"}
+    finally:
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
-            ou = OwnerUnit(
-                owner_id=owner.id,
-                unit_id=unit.id,
-                ownership_type=row.get("ownership_type", "Neuvedeno"),
-                ownership_share=str(row.get("share_scd", "")),
-                voting_weight=float(row.get("voting_weight", 0) or 0),
-            )
-            db.add(ou)
-
-    db.commit()
-
-    request.session["flash"] = {
-        "type": "success",
-        "message": f"Import dokončen: {created_owners} vlastníků, {created_units} jednotek.",
-    }
     return RedirectResponse(url="/vlastnici", status_code=303)
 
 

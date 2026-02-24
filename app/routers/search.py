@@ -30,9 +30,10 @@ def search(request: Request, q: str = "", db: Session = Depends(get_db)):
                 Owner.is_active == True,  # noqa: E712
                 (Owner.first_name.ilike(term))
                 | (Owner.last_name.ilike(term))
+                | (Owner.name_with_titles.ilike(term))
+                | (Owner.name_normalized.ilike(term))
                 | (Owner.email.ilike(term))
-                | (Owner.birth_number.ilike(term))
-                | (Owner.ico.ilike(term))
+                | (Owner.company_id.ilike(term))
             )
             .limit(10)
             .all()
@@ -48,7 +49,7 @@ def search(request: Request, q: str = "", db: Session = Depends(get_db)):
             results["units"] = (
                 db.query(Unit)
                 .filter(
-                    (Unit.address.ilike(term)) | (Unit.building.ilike(term))
+                    (Unit.address.ilike(term)) | (Unit.building_number.ilike(term))
                 )
                 .limit(10)
                 .all()

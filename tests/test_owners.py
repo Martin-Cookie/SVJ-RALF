@@ -1,6 +1,21 @@
 """Tests for owners module — routes and services."""
 
 
+def _make_owner(**kwargs):
+    """Helper to create Owner with required fields."""
+    from app.models.owner import Owner
+    defaults = {
+        "first_name": "Jan",
+        "last_name": "Novák",
+        "name_with_titles": "Novák Jan",
+        "name_normalized": "novak jan",
+        "owner_type": "physical",
+        "is_active": True,
+    }
+    defaults.update(kwargs)
+    return Owner(**defaults)
+
+
 def test_owners_list_requires_login(client, db_engine):
     """GET /vlastnici should redirect when not authenticated."""
     from sqlalchemy.orm import Session as SASession
@@ -28,11 +43,10 @@ def test_owners_list_empty(auth_client):
 def test_owners_list_with_data(auth_client, db_engine):
     """GET /vlastnici with owners should list them."""
     from sqlalchemy.orm import Session as SASession
-    from app.models.owner import Owner
 
     session = SASession(bind=db_engine)
-    session.add(Owner(first_name="Jan", last_name="Novák", owner_type="fyzická", is_active=True))
-    session.add(Owner(first_name="Firma", last_name="s.r.o.", owner_type="právnická", is_active=True))
+    session.add(_make_owner(first_name="Jan", last_name="Novák"))
+    session.add(_make_owner(first_name="Firma", last_name="s.r.o.", name_with_titles="s.r.o. Firma", name_normalized="s.r.o. firma", owner_type="legal"))
     session.commit()
     session.close()
 
@@ -45,11 +59,10 @@ def test_owners_list_with_data(auth_client, db_engine):
 def test_owners_search(auth_client, db_engine):
     """GET /vlastnici?search= should filter owners."""
     from sqlalchemy.orm import Session as SASession
-    from app.models.owner import Owner
 
     session = SASession(bind=db_engine)
-    session.add(Owner(first_name="Jan", last_name="Novák", owner_type="fyzická", is_active=True))
-    session.add(Owner(first_name="Eva", last_name="Svobodová", owner_type="fyzická", is_active=True))
+    session.add(_make_owner(first_name="Jan", last_name="Novák"))
+    session.add(_make_owner(first_name="Eva", last_name="Svobodová", name_with_titles="Svobodová Eva", name_normalized="svobodova eva"))
     session.commit()
     session.close()
 
@@ -61,15 +74,14 @@ def test_owners_search(auth_client, db_engine):
 def test_owners_filter_by_type(auth_client, db_engine):
     """GET /vlastnici?typ= should filter by owner type."""
     from sqlalchemy.orm import Session as SASession
-    from app.models.owner import Owner
 
     session = SASession(bind=db_engine)
-    session.add(Owner(first_name="Jan", last_name="Novák", owner_type="fyzická", is_active=True))
-    session.add(Owner(first_name="Firma", last_name="s.r.o.", owner_type="právnická", is_active=True))
+    session.add(_make_owner(first_name="Jan", last_name="Novák"))
+    session.add(_make_owner(first_name="Firma", last_name="s.r.o.", name_with_titles="s.r.o. Firma", name_normalized="s.r.o. firma", owner_type="legal"))
     session.commit()
     session.close()
 
-    resp = auth_client.get("/vlastnici?typ=fyzická")
+    resp = auth_client.get("/vlastnici?typ=physical")
     assert resp.status_code == 200
     assert "Novák" in resp.text
 
@@ -77,10 +89,9 @@ def test_owners_filter_by_type(auth_client, db_engine):
 def test_owner_detail(auth_client, db_engine):
     """GET /vlastnici/{id} should show owner detail."""
     from sqlalchemy.orm import Session as SASession
-    from app.models.owner import Owner
 
     session = SASession(bind=db_engine)
-    owner = Owner(first_name="Jan", last_name="Novák", owner_type="fyzická", email="jan@test.cz", is_active=True)
+    owner = _make_owner(email="jan@test.cz")
     session.add(owner)
     session.commit()
     owner_id = owner.id
@@ -104,7 +115,7 @@ def test_owner_update_contact(auth_client, db_engine):
     from app.models.owner import Owner
 
     session = SASession(bind=db_engine)
-    owner = Owner(first_name="Jan", last_name="Novák", owner_type="fyzická", is_active=True)
+    owner = _make_owner()
     session.add(owner)
     session.commit()
     owner_id = owner.id
@@ -127,11 +138,11 @@ def test_owner_update_contact(auth_client, db_engine):
 def test_owner_add_unit(auth_client, db_engine):
     """POST /vlastnici/{id}/jednotky/pridat should link a unit."""
     from sqlalchemy.orm import Session as SASession
-    from app.models.owner import Owner, Unit, OwnerUnit
+    from app.models.owner import Unit, OwnerUnit
 
     session = SASession(bind=db_engine)
-    owner = Owner(first_name="Jan", last_name="Novák", owner_type="fyzická", is_active=True)
-    unit = Unit(unit_number=101, building="A")
+    owner = _make_owner()
+    unit = Unit(unit_number=101, building_number="A")
     session.add_all([owner, unit])
     session.commit()
     owner_id = owner.id
@@ -154,10 +165,9 @@ def test_owner_add_unit(auth_client, db_engine):
 def test_excel_export(auth_client, db_engine):
     """GET /vlastnici/export should return an Excel file."""
     from sqlalchemy.orm import Session as SASession
-    from app.models.owner import Owner
 
     session = SASession(bind=db_engine)
-    session.add(Owner(first_name="Jan", last_name="Novák", owner_type="fyzická", is_active=True))
+    session.add(_make_owner())
     session.commit()
     session.close()
 

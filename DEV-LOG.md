@@ -563,3 +563,111 @@ Git log verifies test: → feat: order for every feature block:
 Created with: install instructions, feature list, known issues, tech stack, test commands.
 
 ---
+
+## RE-ENTRY AUDIT – 2026-02-24 15:00
+
+### Stav projektu
+- Předchozích iterací: 7 (+ Final Validation)
+- Feature bloky hotové: 1–10
+- Feature bloky CHYBÍ: žádné (ale import nefungoval s reálnými daty)
+- Testy: 81/81 prochází (ale 0 testů pro excel_import service)
+- Interaction testy: N/A (Playwright testy z předchozí session)
+
+### Identifikované problémy
+| # | Problém | Severity |
+|---|---------|----------|
+| 1 | Excel import nefungoval s reálnými daty (770 řádků, 31 sloupců) | CRITICAL |
+| 2 | Session cookie ~4KB limit → "Žádná data k importu" na confirm | CRITICAL |
+| 3 | Column mapping mismatch → 770 owners ale 0 units | CRITICAL |
+| 4 | Datový model neodpovídal originálu (chybějící pole, špatné typy) | HIGH |
+| 5 | Nulový test coverage pro excel_import.py service | HIGH |
+
+### Provedené změny
+Kompletní přepisem datového modelu a import systému:
+- Owner model: přidána pole title, name_with_titles, name_normalized, company_id, districts, countries; owner_type "physical"/"legal"
+- Unit model: building→building_number, area→floor_area, share_scd→podil_scd, unit_number=Integer
+- OwnerUnit: ownership_share→share(Float), voting_weight→votes(Int), excel_row_number
+- Excel import: positional column indices (0-30), owner deduplication by birth_number/IČ, name cleaning
+- Import router: file-based temp storage (UUID token → .xlsx on disk)
+- All 20 files updated (models, routers, templates, tests)
+
+### Plán
+Pokračuji od Fáze 2b (Fix) s Iterací 8. Review → Fix findings → Update AGENTS.md.
+
+---
+
+## Iterace 8 – 2026-02-24
+📍 Status: Iterace 8/N | Feature blok: 2 (Import rewrite) | Bloky zbývají: 0
+
+### GATE Status
+- GATE 1: PASSED — Import rewrite complete, 81/81 tests pass, real data verified (430 owners, 508 units, 767 links)
+- GATE 2: PASSED — Review ze 6 rolí: CEO ✅, CTO ❌, CPO ✅, Security ❌, QA ❌, Designer ✅
+- GATE 2b: PASSED — CRITICAL=0, HIGH=0 (all fixed), testy 113/113
+
+### Změny
+- `fix:` rewrite data models (Owner, Unit, OwnerUnit) to match original SVJ project
+- `fix:` rewrite excel_import.py — positional columns, dedup, name cleaning
+- `fix:` rewrite import router — file-based temp storage instead of session cookie
+- `fix:` update all templates and routers for new field names
+- `fix:` update all 81 tests for new field names
+- `test:` add 32 unit tests for excel_import.py service functions
+- `fix:` mask birth numbers in owner detail UI
+- `fix:` remove birth_number from global search (privacy)
+- `fix:` move db.commit() from import service to caller (transaction management)
+
+### Review Findings (všech 6 rolí)
+
+| # | Role | Finding / Verdikt | Severity | Status |
+|---|------|-------------------|----------|--------|
+| 1 | CEO | Import flow works end-to-end with real data (430 owners, 508 units, 767 links) | — | OK |
+| 2 | CEO | Owner deduplication by birth_number/IČ works correctly | — | OK |
+| 3 | CEO | No unit tests for import service functions | HIGH | FIXED |
+| 4 | CTO | Zero unit tests for 15+ helper functions in excel_import.py | HIGH | FIXED (32 tests added) |
+| 5 | CTO | import_owners_from_excel calls db.commit() internally | MEDIUM | FIXED (uses db.flush() now) |
+| 6 | CTO | OwnerUnit.share always set to 1.0 | MEDIUM | OPEN (documented as limitation) |
+| 7 | CTO | Owner grouping picks shortest last_name | LOW | OPEN |
+| 8 | CPO | Missing loading indicator during import | MEDIUM | OPEN |
+| 9 | CPO | Missing confirmation dialog before import | MEDIUM | OPEN |
+| 10 | Security | Birth numbers displayed in plain text | HIGH | FIXED (masked with toggle) |
+| 11 | Security | Birth number searchable via global search | MEDIUM | FIXED (removed from search) |
+| 12 | Security | Temp files not cleaned up on crash | LOW | OPEN |
+| 13 | QA | Zero tests for import service | HIGH | FIXED (32 tests) |
+| 14 | QA | No test for import confirm flow | HIGH | FIXED (test_import_confirm_flow) |
+| 15 | QA | No test for error cases | MEDIUM | FIXED (test_import_skips_invalid_rows, test_import_confirm_no_token) |
+| 16 | Designer | Templates consistent with existing design | — | OK |
+| 17 | Designer | Import preview table clean and responsive | — | OK |
+
+### Visual Check
+- N/A (no visual changes beyond birth number masking)
+
+### Interaction Check
+- Import upload → preview → confirm: ✅ end-to-end with real Excel
+- Birth number mask toggle: ✅
+- Error handling (no token): ✅
+
+### Testy
+- Unit: 113/113 | Integration: — | E2E: (Playwright from iter 7)
+
+### Verdict tabulka
+
+| Role | Verdict | Odůvodnění | Open |
+|------|---------|------------|------|
+| CEO | APPROVED | Import works with real data. 430 owners, 508 units, 767 links created correctly. | 0 |
+| CTO | APPROVED | 32 dedicated import tests added. Transaction management fixed. OwnerUnit.share=1.0 documented. | 2 |
+| CPO | APPROVED | Preview informative, error display clear. Loading indicator nice-to-have. | 2 |
+| Security | APPROVED | Birth numbers masked, removed from search. Temp file cleanup in finally block. | 1 |
+| QA | APPROVED | 113 total tests (32 new for import). Dedup, legal entities, error cases covered. | 0 |
+| Designer | APPROVED | Templates consistent, preview table clean, responsive. | 0 |
+
+### AGENTS.md update
+- [iter 8] Excel import: service functions MUST have dedicated unit tests — production data parsing too critical for route-only testing
+- [iter 8] Personal data (birth numbers): ALWAYS mask in UI, restrict in search
+- [iter 8] Transaction management: service functions should NOT commit — let caller manage transactions
+- [iter 8] File-based temp storage: UUID4 token + session-only access + cleanup in finally = secure pattern
+- [iter 8] Name cleaning: strip trailing fraction patterns (e.g., "Zich 1/3" → "Zich")
+- [iter 8] Owner dedup: group by birth_number/IČ first, then by normalized name
+
+### Souhrn + plán další iterace
+Iterace 8 kompletní. Import rewrite verified s reálnými daty. Všech 6 rolí APPROVED. 113/113 testů. Pokračuji GATE 3 check a Visual Polish.
+
+---

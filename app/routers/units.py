@@ -33,20 +33,20 @@ def units_list(
         except ValueError:
             term = f"%{search}%"
             query = query.filter(
-                (Unit.building.ilike(term))
+                (Unit.building_number.ilike(term))
                 | (Unit.address.ilike(term))
                 | (Unit.section.ilike(term))
             )
 
     # Building filter
     if building:
-        query = query.filter(Unit.building == building)
+        query = query.filter(Unit.building_number == building)
 
     # Sorting
     sort_map = {
         "unit_number": Unit.unit_number.asc(),
-        "building": Unit.building.asc(),
-        "area": Unit.area.desc(),
+        "building": Unit.building_number.asc(),
+        "area": Unit.floor_area.desc(),
     }
     order = sort_map.get(sort, Unit.unit_number.asc())
     query = query.order_by(order)
@@ -55,10 +55,10 @@ def units_list(
 
     # Buildings for filter
     buildings = (
-        db.query(Unit.building)
-        .filter(Unit.building != "")
+        db.query(Unit.building_number)
+        .filter(Unit.building_number != "", Unit.building_number != None)  # noqa: E711
         .distinct()
-        .order_by(Unit.building)
+        .order_by(Unit.building_number)
         .all()
     )
     building_list = [b[0] for b in buildings]

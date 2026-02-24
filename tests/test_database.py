@@ -69,7 +69,9 @@ def test_create_owner(db_session):
     owner = Owner(
         first_name="Jan",
         last_name="Novák",
-        owner_type="fyzická",
+        name_with_titles="Novák Jan",
+        name_normalized="novak jan",
+        owner_type="physical",
         is_active=True,
     )
     db_session.add(owner)
@@ -84,21 +86,21 @@ def test_create_unit(db_session):
     """Should be able to create a Unit record."""
     from app.models.owner import Unit
 
-    unit = Unit(unit_number=101, building="A", section="I", space_type="byt")
+    unit = Unit(unit_number=101, building_number="A", section="I", space_type="byt")
     db_session.add(unit)
     db_session.commit()
 
     result = db_session.query(Unit).filter_by(unit_number=101).first()
     assert result is not None
-    assert result.building == "A"
+    assert result.building_number == "A"
 
 
 def test_owner_unit_relationship(db_session):
     """OwnerUnit should link Owner and Unit."""
     from app.models.owner import Owner, OwnerUnit, Unit
 
-    owner = Owner(first_name="Jana", last_name="Nováková", owner_type="fyzická")
-    unit = Unit(unit_number=201, building="B")
+    owner = Owner(first_name="Jana", last_name="Nováková", name_with_titles="Nováková Jana", name_normalized="novakova jana", owner_type="physical")
+    unit = Unit(unit_number=201, building_number="B")
     db_session.add_all([owner, unit])
     db_session.flush()
 
@@ -106,7 +108,7 @@ def test_owner_unit_relationship(db_session):
         owner_id=owner.id,
         unit_id=unit.id,
         ownership_type="VL",
-        ownership_share="1/1",
+        share=1.0,
     )
     db_session.add(ou)
     db_session.commit()

@@ -20,6 +20,11 @@
 - [iter 7] Playwright strict mode: input[name="name"] matchuje více elementů na admin page → scope with section locator
 - [iter 7] Collapsible `<details>`: po redirect se zavřou → v E2E testech znovu otevřít summary po page load
 - [iter 7] Playwright data persistence: pro board member add testy použij unique name s Date.now()
+- [iter 8] Excel import: service functions MUSÍ mít dedicated unit testy — production data parsing je příliš kritický pro route-only testing
+- [iter 8] Personal data (RČ): VŽDY maskovat v UI, omezit v search, zvážit encryption at rest
+- [iter 8] Transaction management: service functions NESMÍ commitovat — nechej callera řídit transakci
+- [iter 8] Name cleaning: stripuj trailing fraction patterns (např. "Zich 1/3" → "Zich") přes regex
+- [iter 8] Import flow: file-based temp storage (UUID4 token → .xlsx na disku) místo session cookie (4KB limit!)
 
 ## Patterns (co funguje dobře v tomto projektu)
 - [iter 1] FastAPI Form() params místo asyncio.new_event_loop() hacku pro form data
@@ -27,7 +32,9 @@
 - [iter 1] Playwright visual-check: loginOrRegister() helper s URL-based branching (registrace/login/dashboard)
 - [iter 1] Tailwind CDN + HTMX + Jinja2 = rychlý prototyping bez build stepu
 - [iter 2] Excel import: openpyxl load_workbook(read_only=True) + column mapping dict → flexibilní parsing
-- [iter 2] Session-based import preview: upload → parse → store in session → confirm → create records
+- [iter 2→8] Import preview: file-based temp storage (UUID token → .xlsx) — session cookie příliš malý pro reálná data
+- [iter 8] Owner deduplication: group by birth_number/IČ first, pak by normalized name — testovat s reálnými daty!
+- [iter 8] Test fixtures: openpyxl Workbook() → temp file → pytest fixture = spolehlivé testování import service
 - [iter 2] Collapsible sections: `<details><summary>` element pro ownership history
 
 ## Known Issues (problémy které ještě nejsou vyřešené)
@@ -36,8 +43,11 @@
 - [DEFERRED → HANDOFF] Test coverage measurement — nice-to-have
 - [DEFERRED → HANDOFF] starlette 0.38.6 CVE — pinned by FastAPI 0.115.0, upgrade FastAPI to fix
 - [DEFERRED → HANDOFF] Pokročilé filtry vlastníků — nice-to-have
-- [DEFERRED → HANDOFF] Import flow E2E test — session-based, difficult to test in Playwright
+- [RESOLVED iter 8] Import flow test — nyní 32 dedicated unit testů + route integration test
 - [MINOR] Query.get() deprecation warning v testu — use Session.get()
+- [MINOR] OwnerUnit.share vždy 1.0 — ownership fraction neextrahována z Excelu
+- [MINOR] Loading indicator chybí při importu (770 rows trvá pár sekund)
+- [MINOR] Temp files: cleanup v finally bloku, ale bez periodic cleanup pro crash scenarios
 
 ## Tech Notes (specifika tech stacku tohoto projektu)
 - Python 3.9.6, FastAPI 0.115.0, SQLAlchemy 2.0.35, Starlette 0.38.6
@@ -46,3 +56,8 @@
 - Tailwind CDN (ne CLI build), custom.css pro overrides
 - HTMX 1.9.10 pro inline editace
 - Playwright + Chromium pro E2E testy a screenshoty
+- Excel import: positional column indices (0-30), sheet "Vlastnici_SVJ"
+- Owner model: owner_type = "physical"/"legal" (ne "fyzická"/"právnická")
+- Unit model: unit_number = Integer (parsed from "1098/X" → X)
+- Birth numbers (RČ): masked in UI, excluded from search
+- Import temp files: data/uploads/_import_temp/{uuid4}.xlsx

@@ -39,15 +39,15 @@
                       {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
                 Všichni ({{ total }})
             </a>
-            <a href="/vlastnici?typ=fyzická{% if search %}&search={{ search }}{% endif %}"
+            <a href="/vlastnici?typ=physical{% if search %}&search={{ search }}{% endif %}"
                class="px-3 py-1.5 text-xs font-medium rounded-full transition
-                      {% if typ == 'fyzická' %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                      {% if typ == 'physical' %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
                       {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
                 Fyzické ({{ fyzicka_count }})
             </a>
-            <a href="/vlastnici?typ=právnická{% if search %}&search={{ search }}{% endif %}"
+            <a href="/vlastnici?typ=legal{% if search %}&search={{ search }}{% endif %}"
                class="px-3 py-1.5 text-xs font-medium rounded-full transition
-                      {% if typ == 'právnická' %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                      {% if typ == 'legal' %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
                       {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
                 Právnické ({{ pravnicka_count }})
             </a>
@@ -79,9 +79,9 @@
                         </td>
                         <td class="px-4 py-2.5">
                             <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full
-                                {% if owner.owner_type == 'fyzická' %}bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300
+                                {% if owner.owner_type == 'physical' %}bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300
                                 {% else %}bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300{% endif %}">
-                                {{ owner.owner_type }}
+                                {% if owner.owner_type == 'physical' %}Fyzická{% else %}Právnická{% endif %}
                             </span>
                         </td>
                         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden md:table-cell">{{ owner.email or "–" }}</td>

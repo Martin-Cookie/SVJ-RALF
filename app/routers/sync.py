@@ -131,7 +131,7 @@ async def sync_upload_csv(
                 owner = db.query(Owner).filter(Owner.id == ou.owner_id).first()
                 if owner:
                     db_owner_name = owner.display_name
-                    db_share = ou.ownership_share or ""
+                    db_share = str(ou.votes) if ou.votes else ""
 
         # Determine status
         status = _compare_records(db_owner_name, csv_owner, db_share, csv_share)

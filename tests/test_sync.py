@@ -29,11 +29,11 @@ def test_sync_upload_csv(auth_client, db_engine):
 
     # Create test data in DB
     session = SASession(bind=db_engine)
-    owner = Owner(first_name="Jan", last_name="Novák", owner_type="fyzická")
-    unit = Unit(unit_number=101, building="A", area=50.0)
+    owner = Owner(first_name="Jan", last_name="Novák", name_with_titles="Novák Jan", name_normalized="novak jan", owner_type="physical")
+    unit = Unit(unit_number=101, building_number="A", floor_area=50.0)
     session.add_all([owner, unit])
     session.flush()
-    session.add(OwnerUnit(owner_id=owner.id, unit_id=unit.id, ownership_share="1/1"))
+    session.add(OwnerUnit(owner_id=owner.id, unit_id=unit.id, share=1.0, votes=100))
     session.commit()
     session.close()
 

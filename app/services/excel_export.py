@@ -24,8 +24,8 @@ def export_owners_xlsx(owners: List) -> io.BytesIO:
     )
 
     headers = [
-        "ID", "Příjmení", "Jméno", "Titul před", "Titul za",
-        "Typ", "RČ/IČ", "Email", "Telefon",
+        "ID", "Příjmení", "Jméno", "Titul",
+        "Typ", "RČ", "IČ", "Email", "Telefon",
         "Trvalá - ulice", "Trvalá - město", "Trvalá - PSČ",
         "Korespondenční - ulice", "Korespondenční - město", "Korespondenční - PSČ",
     ]
@@ -39,15 +39,14 @@ def export_owners_xlsx(owners: List) -> io.BytesIO:
 
     # Data rows
     for row_idx, owner in enumerate(owners, 2):
-        rc_ic = owner.birth_number if owner.owner_type == "fyzická" else owner.ico
         values = [
             owner.id,
-            owner.last_name,
-            owner.first_name,
-            owner.title_before or "",
-            owner.title_after or "",
-            owner.owner_type,
-            rc_ic or "",
+            owner.last_name or "",
+            owner.first_name or "",
+            owner.title or "",
+            "Fyzická" if owner.owner_type == "physical" else "Právnická",
+            owner.birth_number or "",
+            owner.company_id or "",
             owner.email or "",
             owner.phone or "",
             owner.perm_street or "",

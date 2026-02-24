@@ -15,7 +15,7 @@
         <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Nahrát Excel soubor</h2>
         <form method="post" action="/vlastnici/import" enctype="multipart/form-data" class="space-y-4">
             <div>
-                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">Vyberte .xlsx soubor s daty vlastníků</label>
+                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">Vyberte .xlsx soubor s daty vlastníků (formát SVJ_Evidence_Vlastniku)</label>
                 <input type="file" name="file" accept=".xlsx,.xls"
                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 dark:file:bg-primary-900/40 dark:file:text-primary-300">
             </div>
@@ -28,11 +28,14 @@
     <!-- Errors -->
     {% if errors %}
     <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-4">
-        <h3 class="text-sm font-medium text-red-700 dark:text-red-300 mb-2">Chyby při zpracování</h3>
-        <ul class="list-disc list-inside text-sm text-red-600 dark:text-red-400 space-y-1">
-            {% for err in errors %}
+        <h3 class="text-sm font-medium text-red-700 dark:text-red-300 mb-2">Chyby při zpracování ({{ errors | length }})</h3>
+        <ul class="list-disc list-inside text-sm text-red-600 dark:text-red-400 space-y-1 max-h-40 overflow-y-auto">
+            {% for err in errors[:20] %}
             <li>{{ err }}</li>
             {% endfor %}
+            {% if errors | length > 20 %}
+            <li class="font-medium">... a dalších {{ errors | length - 20 }} chyb</li>
+            {% endif %}
         </ul>
     </div>
     {% endif %}
@@ -41,9 +44,14 @@
     {% if preview %}
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
         <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
-                Náhled importu ({{ preview | length }} záznamů)
-            </h2>
+            <div>
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+                    Náhled importu
+                </h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {{ preview.rows_processed }} řádků · {{ preview.owners_count }} unikátních vlastníků · {{ preview.units_count }} jednotek
+                </p>
+            </div>
             <form method="post" action="/vlastnici/import/potvrdit">
                 <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition">
                     Potvrdit import
@@ -54,29 +62,37 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
-                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">#</th>
-                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Příjmení</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Řádek</th>
                         <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Jméno</th>
                         <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Typ</th>
-                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Email</th>
                         <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Jednotka</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell">Vlastnictví</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell">Podíl SČD</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400 hidden lg:table-cell">Email</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
-                    {% for row in preview[:20] %}
+                    {% for row in preview.preview_rows[:30] %}
                     <tr>
-                        <td class="px-3 py-2 text-gray-500">{{ loop.index }}</td>
-                        <td class="px-3 py-2">{{ row.last_name }}</td>
-                        <td class="px-3 py-2">{{ row.first_name }}</td>
-                        <td class="px-3 py-2">{{ row.owner_type }}</td>
-                        <td class="px-3 py-2 text-gray-500">{{ row.email or "–" }}</td>
-                        <td class="px-3 py-2 text-gray-500">{{ row.unit_number or "–" }}</td>
+                        <td class="px-3 py-2 text-gray-400 text-xs">{{ row.row }}</td>
+                        <td class="px-3 py-2 font-medium">{{ row.name }}</td>
+                        <td class="px-3 py-2">
+                            <span class="inline-flex px-1.5 py-0.5 text-xs rounded-full
+                                {% if row.owner_type == 'physical' %}bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300
+                                {% else %}bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300{% endif %}">
+                                {% if row.owner_type == 'physical' %}FO{% else %}PO{% endif %}
+                            </span>
+                        </td>
+                        <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ row.unit_number }}</td>
+                        <td class="px-3 py-2 text-gray-500 hidden md:table-cell">{{ row.ownership_type or "–" }}</td>
+                        <td class="px-3 py-2 text-right text-gray-500 hidden md:table-cell">{{ row.podil_scd | cislo if row.podil_scd else "–" }}</td>
+                        <td class="px-3 py-2 text-gray-500 hidden lg:table-cell">{{ row.email or "–" }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-            {% if preview | length > 20 %}
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2 px-3">... a dalších {{ preview | length - 20 }} záznamů</p>
+            {% if preview.preview_rows | length > 30 %}
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2 px-3">... a dalších {{ preview.preview_rows | length - 30 }} záznamů</p>
             {% endif %}
         </div>
     </div>

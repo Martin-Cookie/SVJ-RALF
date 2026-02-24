@@ -1,16 +1,30 @@
 """Tests for voting processing module — ballot processing, results, import."""
 
 
+def _make_owner(session, first_name="Jan", last_name="Novák"):
+    """Helper to create Owner with required fields."""
+    from app.models.owner import Owner
+    owner = Owner(
+        first_name=first_name,
+        last_name=last_name,
+        name_with_titles=f"{last_name} {first_name}",
+        name_normalized=f"{last_name} {first_name}".lower(),
+        owner_type="physical",
+    )
+    session.add(owner)
+    return owner
+
+
 def test_ballot_detail(auth_client, db_engine):
     """GET /hlasovani/{id}/listek/{ballot_id} should show ballot with vote form."""
     from sqlalchemy.orm import Session as SASession
     from app.models.voting import Voting, VotingItem, Ballot
-    from app.models.owner import Owner, Unit
+    from app.models.owner import Unit
 
     session = SASession(bind=db_engine)
-    owner = Owner(first_name="Jan", last_name="Novák", owner_type="fyzická")
-    unit = Unit(unit_number=101, building="A", area=50.0)
-    session.add_all([owner, unit])
+    owner = _make_owner(session)
+    unit = Unit(unit_number=101, building_number="A", floor_area=50.0)
+    session.add(unit)
     session.flush()
     v = Voting(name="Test", status="aktivní", quorum=50.0)
     session.add(v)
@@ -33,12 +47,12 @@ def test_process_single_ballot(auth_client, db_engine):
     """POST /hlasovani/{id}/zpracovat/{ballot_id} should record votes."""
     from sqlalchemy.orm import Session as SASession
     from app.models.voting import Voting, VotingItem, Ballot, BallotVote
-    from app.models.owner import Owner, Unit
+    from app.models.owner import Unit
 
     session = SASession(bind=db_engine)
-    owner = Owner(first_name="Jan", last_name="Novák", owner_type="fyzická")
-    unit = Unit(unit_number=101, building="A", area=50.0)
-    session.add_all([owner, unit])
+    owner = _make_owner(session)
+    unit = Unit(unit_number=101, building_number="A", floor_area=50.0)
+    session.add(unit)
     session.flush()
     v = Voting(name="Test", status="aktivní", quorum=50.0)
     session.add(v)
@@ -79,12 +93,12 @@ def test_processing_page(auth_client, db_engine):
     """GET /hlasovani/{id}/zpracovani should show processing interface."""
     from sqlalchemy.orm import Session as SASession
     from app.models.voting import Voting, VotingItem, Ballot
-    from app.models.owner import Owner, Unit
+    from app.models.owner import Unit
 
     session = SASession(bind=db_engine)
-    owner = Owner(first_name="Jan", last_name="Novák", owner_type="fyzická")
-    unit = Unit(unit_number=101, building="A", area=50.0)
-    session.add_all([owner, unit])
+    owner = _make_owner(session)
+    unit = Unit(unit_number=101, building_number="A", floor_area=50.0)
+    session.add(unit)
     session.flush()
     v = Voting(name="Test", status="aktivní", quorum=50.0)
     session.add(v)
@@ -104,13 +118,13 @@ def test_unsubmitted_ballots(auth_client, db_engine):
     """GET /hlasovani/{id}/neodevzdane should list unprocessed ballots."""
     from sqlalchemy.orm import Session as SASession
     from app.models.voting import Voting, Ballot
-    from app.models.owner import Owner, Unit
+    from app.models.owner import Unit
 
     session = SASession(bind=db_engine)
-    owner1 = Owner(first_name="Jan", last_name="Novák", owner_type="fyzická")
-    owner2 = Owner(first_name="Eva", last_name="Malá", owner_type="fyzická")
-    unit = Unit(unit_number=101, building="A", area=50.0)
-    session.add_all([owner1, owner2, unit])
+    owner1 = _make_owner(session, "Jan", "Novák")
+    owner2 = _make_owner(session, "Eva", "Malá")
+    unit = Unit(unit_number=101, building_number="A", floor_area=50.0)
+    session.add(unit)
     session.flush()
     v = Voting(name="Test", status="aktivní", quorum=50.0)
     session.add(v)
@@ -130,12 +144,12 @@ def test_voting_results_with_quorum(auth_client, db_engine):
     """GET /hlasovani/{id} should show results with quorum info."""
     from sqlalchemy.orm import Session as SASession
     from app.models.voting import Voting, VotingItem, Ballot, BallotVote
-    from app.models.owner import Owner, Unit
+    from app.models.owner import Unit
 
     session = SASession(bind=db_engine)
-    owner = Owner(first_name="Jan", last_name="Novák", owner_type="fyzická")
-    unit = Unit(unit_number=101, building="A", area=50.0)
-    session.add_all([owner, unit])
+    owner = _make_owner(session)
+    unit = Unit(unit_number=101, building_number="A", floor_area=50.0)
+    session.add(unit)
     session.flush()
     v = Voting(name="Test", status="aktivní", quorum=50.0)
     session.add(v)
@@ -161,13 +175,13 @@ def test_bulk_processing(auth_client, db_engine):
     """POST /hlasovani/{id}/zpracovat-hromadne should process multiple ballots."""
     from sqlalchemy.orm import Session as SASession
     from app.models.voting import Voting, VotingItem, Ballot, BallotVote
-    from app.models.owner import Owner, Unit
+    from app.models.owner import Unit
 
     session = SASession(bind=db_engine)
-    owner1 = Owner(first_name="Jan", last_name="Novák", owner_type="fyzická")
-    owner2 = Owner(first_name="Eva", last_name="Malá", owner_type="fyzická")
-    unit = Unit(unit_number=101, building="A", area=50.0)
-    session.add_all([owner1, owner2, unit])
+    owner1 = _make_owner(session, "Jan", "Novák")
+    owner2 = _make_owner(session, "Eva", "Malá")
+    unit = Unit(unit_number=101, building_number="A", floor_area=50.0)
+    session.add(unit)
     session.flush()
     v = Voting(name="Test", status="aktivní", quorum=50.0)
     session.add(v)

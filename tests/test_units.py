@@ -31,8 +31,8 @@ def test_units_list_with_data(auth_client, db_engine):
     from app.models.owner import Unit
 
     session = SASession(bind=db_engine)
-    session.add(Unit(unit_number=101, building="A", area=55.5))
-    session.add(Unit(unit_number=202, building="B", area=72.0))
+    session.add(Unit(unit_number=101, building_number="A", floor_area=55.5))
+    session.add(Unit(unit_number=202, building_number="B", floor_area=72.0))
     session.commit()
     session.close()
 
@@ -48,8 +48,8 @@ def test_units_search(auth_client, db_engine):
     from app.models.owner import Unit
 
     session = SASession(bind=db_engine)
-    session.add(Unit(unit_number=101, building="A"))
-    session.add(Unit(unit_number=202, building="B"))
+    session.add(Unit(unit_number=101, building_number="A"))
+    session.add(Unit(unit_number=202, building_number="B"))
     session.commit()
     session.close()
 
@@ -64,7 +64,7 @@ def test_unit_detail(auth_client, db_engine):
     from app.models.owner import Unit
 
     session = SASession(bind=db_engine)
-    unit = Unit(unit_number=101, building="A", area=55.5, section="Sekce 1")
+    unit = Unit(unit_number=101, building_number="A", floor_area=55.5, section="Sekce 1")
     session.add(unit)
     session.commit()
     unit_id = unit.id
@@ -88,8 +88,8 @@ def test_unit_detail_shows_owners(auth_client, db_engine):
     from app.models.owner import Owner, Unit, OwnerUnit
 
     session = SASession(bind=db_engine)
-    owner = Owner(first_name="Jan", last_name="Novák", owner_type="fyzická", is_active=True)
-    unit = Unit(unit_number=101, building="A")
+    owner = Owner(first_name="Jan", last_name="Novák", name_with_titles="Novák Jan", name_normalized="novak jan", owner_type="physical", is_active=True)
+    unit = Unit(unit_number=101, building_number="A")
     session.add_all([owner, unit])
     session.commit()
     ou = OwnerUnit(owner_id=owner.id, unit_id=unit.id)
