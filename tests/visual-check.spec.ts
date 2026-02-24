@@ -50,6 +50,14 @@ test.describe('Visual Check', () => {
         fullPage: true,
       });
 
+      // Units page
+      await page.goto('/jednotky');
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({
+        path: `screenshots/iter-${ITER}-${PHASE}-${vp.name}-units.png`,
+        fullPage: true,
+      });
+
       // Login page
       await page.goto('/logout');
       await page.waitForLoadState('networkidle');

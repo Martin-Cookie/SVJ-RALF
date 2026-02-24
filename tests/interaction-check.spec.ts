@@ -146,3 +146,35 @@ test.describe('Interaction Check – Blok 2 (Vlastníci)', () => {
     await expect(page).toHaveURL(/\/vlastnici/);
   });
 });
+
+test.describe('Interaction Check – Blok 3 (Jednotky)', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginOrRegister(page);
+  });
+
+  test('units page loads with empty state', async ({ page }) => {
+    await page.goto('/jednotky');
+    await expect(page.getByRole('heading', { name: 'Jednotky', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Žádné jednotky' })).toBeVisible();
+  });
+
+  test('units sidebar link navigates correctly', async ({ page }) => {
+    await page.click('#sidebar a[href="/jednotky"]');
+    await expect(page).toHaveURL(/\/jednotky/);
+    await expect(page.getByRole('heading', { name: 'Jednotky', exact: true })).toBeVisible();
+  });
+
+  test('units search input is present', async ({ page }) => {
+    await page.goto('/jednotky');
+    const searchInput = page.locator('input[name="search"]');
+    await expect(searchInput).toBeVisible();
+  });
+
+  test('keyboard shortcut G+J navigates to units', async ({ page }) => {
+    await page.keyboard.press('g');
+    await page.waitForTimeout(100);
+    await page.keyboard.press('j');
+    await page.waitForTimeout(500);
+    await expect(page).toHaveURL(/\/jednotky/);
+  });
+});
