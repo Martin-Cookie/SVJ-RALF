@@ -13,8 +13,20 @@
         </div>
     </div>
 
+    <!-- Step indicators -->
+    <div class="flex items-center gap-2 text-xs font-medium">
+        <span class="px-3 py-1 rounded-full {% if step == 'upload' %}bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-2 ring-primary-300{% else %}bg-gray-100 dark:bg-slate-700 text-gray-500{% endif %}">1. Nahrát</span>
+        <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="px-3 py-1 rounded-full {% if step == 'mapping' %}bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-2 ring-primary-300{% else %}bg-gray-100 dark:bg-slate-700 text-gray-500{% endif %}">2. Mapování sloupců</span>
+        <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="px-3 py-1 rounded-full {% if step == 'preview' %}bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-2 ring-primary-300{% else %}bg-gray-100 dark:bg-slate-700 text-gray-500{% endif %}">3. Náhled</span>
+        <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="px-3 py-1 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500">4. Potvrdit</span>
+    </div>
+
+    {% if step == 'upload' %}
+    <!-- STEP 1: Upload -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Upload form -->
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Nahrát Excel</h2>
             <form method="post" action="/hlasovani/{{ voting.id }}/import" enctype="multipart/form-data" class="space-y-4">
@@ -27,12 +39,11 @@
                     Formát: sloupce Vlastník, Jednotka, pak body hlasování. Hodnoty PRO/PROTI/Zdržel se (nebo 1/0).
                 </p>
                 <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
-                    Nahrát a zobrazit náhled
+                    Nahrát soubor
                 </button>
             </form>
         </div>
 
-        <!-- Info about voting items -->
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Body hlasování ({{ items | length }})</h2>
             {% if items %}
@@ -47,12 +58,81 @@
         </div>
     </div>
 
-    {% if preview %}
-    <!-- Preview section -->
+    {% elif step == 'mapping' %}
+    <!-- STEP 2: Column mapping -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Mapování sloupců</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Soubor nahraný ({{ total_rows }} řádků dat). Přiřaďte sloupce k rolím.</p>
+
+        <form method="post" action="/hlasovani/{{ voting.id }}/import/mapovani" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Sloupec: Vlastník</label>
+                    <select name="owner_col" class="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-white">
+                        {% for h in headers %}
+                        <option value="{{ loop.index0 }}" {% if loop.index0 == 0 %}selected{% endif %}>{{ h }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Sloupec: Jednotka</label>
+                    <select name="unit_col" class="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-white">
+                        {% for h in headers %}
+                        <option value="{{ loop.index0 }}" {% if loop.index0 == 1 %}selected{% endif %}>{{ h }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Počáteční řádek dat</label>
+                    <input type="number" name="start_row" value="2" min="1"
+                           class="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Režim importu</label>
+                    <select name="import_mode" class="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-white">
+                        <option value="doplnit">Doplnit (zachovat existující)</option>
+                        <option value="prepsat">Vyčistit a přepsat</option>
+                    </select>
+                </div>
+            </div>
+
+            {% if sample_rows %}
+            <div class="mt-4">
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Ukázka dat (první 3 řádky):</p>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
+                                {% for h in headers %}
+                                <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">{{ h }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
+                            {% for row in sample_rows %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/30">
+                                {% for cell in row %}
+                                <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ cell or "–" }}</td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                Zobrazit náhled
+            </button>
+        </form>
+    </div>
+
+    {% elif step == 'preview' %}
+    <!-- STEP 3: Preview -->
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
         <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Náhled importu</h2>
 
-        <!-- Stats bubbles -->
         <div class="flex gap-3 mb-4 flex-wrap">
             <span class="px-3 py-1.5 text-xs font-medium rounded-full bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400">
                 Celkem: {{ preview.total }}
@@ -65,9 +145,13 @@
                 Nepřiřazeno: {{ preview.unmatched }}
             </span>
             {% endif %}
+            {% if mapping %}
+            <span class="px-3 py-1.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                Režim: {{ "Doplnit" if mapping.import_mode == "doplnit" else "Přepsat" }}
+            </span>
+            {% endif %}
         </div>
 
-        <!-- Preview table -->
         {% if preview.rows %}
         <div class="overflow-x-auto mb-4">
             <table class="w-full text-sm">
@@ -89,14 +173,20 @@
                 </tbody>
             </table>
         </div>
+        {% if preview.total > 20 %}
+        <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">Zobrazeno 20 z {{ preview.total }} řádků.</p>
+        {% endif %}
         {% endif %}
 
-        <!-- Confirm button -->
+        {% if preview.matched > 0 %}
         <form method="post" action="/hlasovani/{{ voting.id }}/import/potvrdit">
             <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition">
-                Potvrdit import ({{ preview.total }} záznamů)
+                Potvrdit import ({{ preview.matched }} přiřazených záznamů)
             </button>
         </form>
+        {% else %}
+        <p class="text-sm text-red-500 dark:text-red-400">Žádné záznamy nelze přiřadit. Zkontrolujte mapování sloupců.</p>
+        {% endif %}
     </div>
     {% endif %}
 </div>

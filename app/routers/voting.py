@@ -701,7 +701,7 @@ _ALLOWED_EXTENSIONS = {".xlsx", ".xls"}
 def voting_import_page(
     voting_id: int, request: Request, db: Session = Depends(get_db)
 ):
-    """Show voting result import page."""
+    """Step 1: Show voting result import page (upload form)."""
     user, redirect = _require_editor_voting(request, db)
     if redirect:
         return redirect
@@ -715,7 +715,7 @@ def voting_import_page(
     return request.app.state.templates.TemplateResponse(
         request,
         "voting/import.html",
-        {"user": user, "voting": voting, "items": items, "preview": None},
+        {"user": user, "voting": voting, "items": items, "step": "upload"},
     )
 
 
@@ -726,7 +726,7 @@ async def voting_import_upload(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    """Upload Excel with voting results, show preview."""
+    """Step 2: Upload Excel → show column mapping UI."""
     user, redirect = _require_editor_voting(request, db)
     if redirect:
         return redirect
@@ -753,7 +753,6 @@ async def voting_import_upload(
     # Save uploaded file to temp directory
     token = str(uuid.uuid4())
     temp_path = os.path.join(_IMPORT_TEMP_DIR, f"{token}.xlsx")
-    # Path traversal validation (token is UUID4, but defense in depth)
     real_path = os.path.realpath(temp_path)
     real_dir = os.path.realpath(_IMPORT_TEMP_DIR)
     if not real_path.startswith(real_dir + os.sep):
@@ -763,7 +762,7 @@ async def voting_import_upload(
     with open(temp_path, "wb") as f:
         f.write(content)
 
-    # Parse Excel for preview
+    # Parse Excel headers for column mapping
     import openpyxl
     try:
         wb = openpyxl.load_workbook(temp_path, read_only=True)
@@ -774,52 +773,34 @@ async def voting_import_upload(
         request.session["flash"] = {"type": "error", "message": f"Chyba čtení souboru: {e}"}
         return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
 
-    headers = [str(h) if h else "" for h in rows[0]] if rows else []
-    data_rows = rows[1:] if len(rows) > 1 else []
+    headers = [str(h) if h else f"Sloupec {i+1}" for i, h in enumerate(rows[0])] if rows else []
+    sample_rows = rows[1:4] if len(rows) > 1 else []  # Show 3 sample rows
 
-    # Store token for confirm
+    # Store token in session
     request.session["voting_import_token"] = token
-
-    preview = {
-        "headers": headers,
-        "rows": data_rows[:20],  # Preview first 20
-        "total": len(data_rows),
-        "matched": 0,
-        "unmatched": 0,
-    }
-
-    # Try to match rows to owners/units
-    from app.models.owner import Owner, Unit
-    matched = 0
-    for row in data_rows:
-        if len(row) >= 2:
-            owner_val = str(row[0]) if row[0] else ""
-            unit_val = str(row[1]) if row[1] else ""
-            # Try to find matching ballot
-            if unit_val:
-                try:
-                    unit_num = int(unit_val)
-                    unit = db.query(Unit).filter(Unit.unit_number == unit_num).first()
-                    if unit:
-                        matched += 1
-                except (ValueError, TypeError):
-                    pass
-
-    preview["matched"] = matched
-    preview["unmatched"] = len(data_rows) - matched
 
     return request.app.state.templates.TemplateResponse(
         request,
         "voting/import.html",
-        {"user": user, "voting": voting, "items": items, "preview": preview},
+        {
+            "user": user,
+            "voting": voting,
+            "items": items,
+            "step": "mapping",
+            "headers": headers,
+            "sample_rows": sample_rows,
+            "total_rows": len(rows) - 1 if rows else 0,
+        },
     )
 
 
-@router.post("/hlasovani/{voting_id}/import/potvrdit")
-def voting_import_confirm(
-    voting_id: int, request: Request, db: Session = Depends(get_db)
+@router.post("/hlasovani/{voting_id}/import/mapovani")
+async def voting_import_mapping(
+    voting_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
 ):
-    """Confirm voting result import from Excel."""
+    """Step 3: Apply column mapping → show preview with match stats."""
     user, redirect = _require_editor_voting(request, db)
     if redirect:
         return redirect
@@ -828,7 +809,15 @@ def voting_import_confirm(
     if voting is None:
         return HTMLResponse("Hlasování nenalezeno", status_code=404)
 
-    token = request.session.pop("voting_import_token", "")
+    items = db.query(VotingItem).filter(VotingItem.voting_id == voting_id).order_by(VotingItem.number).all()
+
+    form = await request.form()
+    owner_col = int(form.get("owner_col", 0))
+    unit_col = int(form.get("unit_col", 1))
+    start_row = int(form.get("start_row", 2))
+    import_mode = str(form.get("import_mode", "doplnit"))
+
+    token = request.session.get("voting_import_token", "")
     if not token:
         request.session["flash"] = {"type": "error", "message": "Žádná data k importu."}
         return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
@@ -838,27 +827,131 @@ def voting_import_confirm(
         request.session["flash"] = {"type": "error", "message": "Soubor importu nenalezen."}
         return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
 
+    import openpyxl
+    wb = openpyxl.load_workbook(temp_path, read_only=True)
+    ws = wb.active
+    all_rows = list(ws.iter_rows(min_row=1, values_only=True))
+    wb.close()
+
+    # Apply start_row (1-indexed in Excel)
+    data_rows = all_rows[start_row - 1:] if start_row <= len(all_rows) else []
+
+    # Build headers from the row before start_row (or generated)
+    if start_row >= 2 and len(all_rows) >= start_row - 1:
+        header_row = all_rows[start_row - 2]
+        headers = [str(h) if h else f"Sloupec {i+1}" for i, h in enumerate(header_row)]
+    else:
+        max_cols = max(len(r) for r in data_rows) if data_rows else 0
+        headers = [f"Sloupec {i+1}" for i in range(max_cols)]
+
+    # Match rows to units
+    from app.models.owner import Unit
+    matched = 0
+    for row in data_rows:
+        if len(row) > unit_col and row[unit_col]:
+            try:
+                unit_num = int(str(row[unit_col]).strip())
+                unit = db.query(Unit).filter(Unit.unit_number == unit_num).first()
+                if unit:
+                    matched += 1
+            except (ValueError, TypeError):
+                pass
+
+    # Store mapping config in session for confirm step
+    request.session["voting_import_mapping"] = {
+        "owner_col": owner_col,
+        "unit_col": unit_col,
+        "start_row": start_row,
+        "import_mode": import_mode,
+    }
+
+    preview = {
+        "headers": headers,
+        "rows": data_rows[:20],
+        "total": len(data_rows),
+        "matched": matched,
+        "unmatched": len(data_rows) - matched,
+    }
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "voting/import.html",
+        {
+            "user": user,
+            "voting": voting,
+            "items": items,
+            "step": "preview",
+            "preview": preview,
+            "mapping": request.session["voting_import_mapping"],
+        },
+    )
+
+
+@router.post("/hlasovani/{voting_id}/import/potvrdit")
+def voting_import_confirm(
+    voting_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Step 4: Confirm voting result import from Excel with mapping."""
+    user, redirect = _require_editor_voting(request, db)
+    if redirect:
+        return redirect
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+
+    token = request.session.pop("voting_import_token", "")
+    mapping = request.session.pop("voting_import_mapping", None)
+    if not token:
+        request.session["flash"] = {"type": "error", "message": "Žádná data k importu."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
+
+    # Default mapping if not set (backwards compat)
+    if not mapping:
+        mapping = {"owner_col": 0, "unit_col": 1, "start_row": 2, "import_mode": "doplnit"}
+
+    temp_path = os.path.join(_IMPORT_TEMP_DIR, f"{token}.xlsx")
+    if not os.path.exists(temp_path):
+        request.session["flash"] = {"type": "error", "message": "Soubor importu nenalezen."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
+
     items = db.query(VotingItem).filter(VotingItem.voting_id == voting_id).order_by(VotingItem.number).all()
+
+    owner_col = mapping["owner_col"]
+    unit_col = mapping["unit_col"]
+    start_row = mapping["start_row"]
+    import_mode = mapping["import_mode"]
 
     try:
         import openpyxl
         wb = openpyxl.load_workbook(temp_path, read_only=True)
         ws = wb.active
-        rows = list(ws.iter_rows(min_row=2, values_only=True))  # Skip header
+        all_rows = list(ws.iter_rows(min_row=1, values_only=True))
         wb.close()
 
+        data_rows = all_rows[start_row - 1:] if start_row <= len(all_rows) else []
+
         from app.models.owner import Owner, Unit, OwnerUnit
+
+        # If mode is "přepsat", clear existing votes for this voting
+        if import_mode == "prepsat":
+            existing_ballots = db.query(Ballot).filter(Ballot.voting_id == voting_id).all()
+            for b in existing_ballots:
+                db.query(BallotVote).filter(BallotVote.ballot_id == b.id).delete()
 
         imported = 0
         vote_mapping = {"pro": "PRO", "1": "PRO", "ano": "PRO", "yes": "PRO",
                         "proti": "PROTI", "0": "PROTI", "ne": "PROTI", "no": "PROTI",
                         "zdržel": "Zdržel se", "zdržel se": "Zdržel se", "abstain": "Zdržel se"}
 
-        for row in rows:
-            if not row or len(row) < 3:
+        # Compute vote column indices: all columns except owner_col and unit_col
+        max_cols = max(len(r) for r in data_rows) if data_rows else 0
+        vote_cols = [c for c in range(max_cols) if c != owner_col and c != unit_col]
+
+        for row in data_rows:
+            if not row:
                 continue
-            owner_val = str(row[0]).strip() if row[0] else ""
-            unit_val = str(row[1]).strip() if row[1] else ""
+            unit_val = str(row[unit_col]).strip() if len(row) > unit_col and row[unit_col] else ""
 
             # Find unit
             unit = None
@@ -871,35 +964,36 @@ def voting_import_confirm(
             if not unit:
                 continue
 
-            # Find ballot for this unit
-            ballot = db.query(Ballot).filter(
+            # Find ALL ballots for this unit (SJM matching — all co-owners)
+            ballots = db.query(Ballot).filter(
                 Ballot.voting_id == voting_id,
                 Ballot.unit_id == unit.id,
-            ).first()
+            ).all()
 
-            if not ballot:
+            if not ballots:
                 continue
 
-            # Process votes (columns 2+ map to voting items)
-            for i, item in enumerate(items):
-                col_idx = i + 2
-                if col_idx < len(row) and row[col_idx] is not None:
-                    vote_raw = str(row[col_idx]).strip().lower()
-                    vote_val = vote_mapping.get(vote_raw, "")
-                    if vote_val:
-                        # Check if vote already exists
-                        existing = db.query(BallotVote).filter(
-                            BallotVote.ballot_id == ballot.id,
-                            BallotVote.voting_item_id == item.id,
-                        ).first()
-                        if existing:
-                            existing.vote = vote_val
-                        else:
-                            bv = BallotVote(ballot_id=ballot.id, voting_item_id=item.id, vote=vote_val)
-                            db.add(bv)
+            # Process votes for each ballot (SJM: same votes for all co-owners on same unit)
+            for ballot in ballots:
+                for i, item in enumerate(items):
+                    if i < len(vote_cols):
+                        col_idx = vote_cols[i]
+                        if col_idx < len(row) and row[col_idx] is not None:
+                            vote_raw = str(row[col_idx]).strip().lower()
+                            vote_val = vote_mapping.get(vote_raw, "")
+                            if vote_val:
+                                existing = db.query(BallotVote).filter(
+                                    BallotVote.ballot_id == ballot.id,
+                                    BallotVote.voting_item_id == item.id,
+                                ).first()
+                                if existing:
+                                    existing.vote = vote_val
+                                else:
+                                    bv = BallotVote(ballot_id=ballot.id, voting_item_id=item.id, vote=vote_val)
+                                    db.add(bv)
 
-            ballot.status = "zpracován"
-            imported += 1
+                ballot.status = "zpracován"
+                imported += 1
 
         db.commit()
         request.session["flash"] = {"type": "success", "message": f"Importováno {imported} hlasovacích lístků."}

@@ -395,6 +395,7 @@ def sync_exchange_preview(
 
     unit = db.query(Unit).filter(Unit.id == rec.unit_id).first() if rec.unit_id else None
 
+    from datetime import date
     return request.app.state.templates.TemplateResponse(
         request,
         "sync/exchange_preview.html",
@@ -404,22 +405,26 @@ def sync_exchange_preview(
             "record": rec,
             "unit": unit,
             "candidates": candidates[:10],
+            "today": date.today().isoformat(),
         },
     )
 
 
 @router.post("/synchronizace/{session_id}/vymena/{rec_id}/potvrdit")
-def sync_exchange_confirm(
+async def sync_exchange_confirm(
     session_id: int,
     rec_id: int,
     request: Request,
-    new_owner_id: int = Form(...),
     db: Session = Depends(get_db),
 ):
     """Confirm owner exchange — set valid_to on old OwnerUnit, create new one."""
     user, redirect = _require_editor_sync(request, db)
     if redirect:
         return redirect
+
+    form = await request.form()
+    new_owner_id = int(form.get("new_owner_id", 0))
+    exchange_date_str = str(form.get("exchange_date", ""))
 
     rec = db.query(SyncRecord).filter(
         SyncRecord.id == rec_id, SyncRecord.session_id == session_id
@@ -429,7 +434,17 @@ def sync_exchange_confirm(
         return RedirectResponse(url=f"/synchronizace/{session_id}", status_code=303)
 
     from app.models.owner import Owner, OwnerUnit
+    from app.models.common import AuditLog, ImportLog
     from datetime import date
+
+    # Parse exchange date or default to today
+    exchange_date = date.today()
+    if exchange_date_str:
+        try:
+            parts = exchange_date_str.split("-")
+            exchange_date = date(int(parts[0]), int(parts[1]), int(parts[2]))
+        except (ValueError, IndexError):
+            pass
 
     # Validate new_owner_id exists and is active
     new_owner = db.query(Owner).filter(Owner.id == new_owner_id, Owner.is_active == True).first()  # noqa: E712
@@ -437,6 +452,7 @@ def sync_exchange_confirm(
         request.session["flash"] = {"type": "error", "message": "Vybraný vlastník neexistuje nebo není aktivní."}
         return RedirectResponse(url=f"/synchronizace/{session_id}/vymena/{rec_id}", status_code=303)
 
+    old_owner_names = []
     # Soft-delete old OwnerUnit
     if rec.unit_id:
         old_ous = db.query(OwnerUnit).filter(
@@ -444,17 +460,40 @@ def sync_exchange_confirm(
             OwnerUnit.valid_to.is_(None),
         ).all()
         for ou in old_ous:
-            ou.valid_to = date.today()
+            ou.valid_to = exchange_date
+            old_owner_names.append(str(ou.owner_id))
 
         # Create new OwnerUnit
         new_ou = OwnerUnit(
             owner_id=new_owner_id,
             unit_id=rec.unit_id,
-            valid_from=date.today(),
+            valid_from=exchange_date,
         )
         db.add(new_ou)
 
     rec.is_resolved = 1
+
+    # Create AuditLog entry
+    audit = AuditLog(
+        user_id=user.id if user else None,
+        action="exchange",
+        model_name="OwnerUnit",
+        record_id=rec.unit_id,
+        old_value=f"unit_id={rec.unit_id}, owners=[{','.join(old_owner_names)}]",
+        new_value=f"unit_id={rec.unit_id}, new_owner_id={new_owner_id}, date={exchange_date}",
+    )
+    db.add(audit)
+
+    # Create ImportLog entry
+    import_log = ImportLog(
+        source="exchange",
+        filename=f"sync_session_{session_id}",
+        records_count=1,
+        status="success",
+        details=f"Exchange: unit {rec.unit_id}, {rec.db_owner_name} → {new_owner.display_name}",
+    )
+    db.add(import_log)
+
     db.commit()
 
     request.session["flash"] = {"type": "success", "message": "Výměna vlastníka provedena."}
@@ -497,6 +536,7 @@ def sync_bulk_exchange_confirm(
         return redirect
 
     from app.models.owner import Owner, OwnerUnit
+    from app.models.common import AuditLog, ImportLog
     from datetime import date
     from difflib import SequenceMatcher
 
@@ -541,6 +581,28 @@ def sync_bulk_exchange_confirm(
             db.add(new_ou)
             rec.is_resolved = 1
             exchanged += 1
+
+            # AuditLog for each exchange
+            audit = AuditLog(
+                user_id=user.id if user else None,
+                action="exchange",
+                model_name="OwnerUnit",
+                record_id=rec.unit_id,
+                old_value=f"unit_id={rec.unit_id}, old_owner={rec.db_owner_name}",
+                new_value=f"unit_id={rec.unit_id}, new_owner={best_match.display_name}, score={best_score:.2f}",
+            )
+            db.add(audit)
+
+    # ImportLog for bulk exchange
+    if exchanged > 0:
+        import_log = ImportLog(
+            source="exchange",
+            filename=f"sync_session_{session_id}_bulk",
+            records_count=exchanged,
+            status="success",
+            details=f"Bulk exchange: {exchanged} records",
+        )
+        db.add(import_log)
 
     db.commit()
     request.session["flash"] = {"type": "success", "message": f"Hromadná výměna: {exchanged} záznamů."}
