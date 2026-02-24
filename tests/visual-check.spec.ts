@@ -42,6 +42,14 @@ test.describe('Visual Check', () => {
         fullPage: true,
       });
 
+      // Owners page (empty state)
+      await page.goto('/vlastnici');
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({
+        path: `screenshots/iter-${ITER}-${PHASE}-${vp.name}-owners.png`,
+        fullPage: true,
+      });
+
       // Login page
       await page.goto('/logout');
       await page.waitForLoadState('networkidle');

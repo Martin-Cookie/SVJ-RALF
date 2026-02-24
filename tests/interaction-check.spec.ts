@@ -98,3 +98,51 @@ test.describe('Interaction Check – Blok 1', () => {
     await expect(page.getByText('Žádné notifikace')).toBeVisible();
   });
 });
+
+test.describe('Interaction Check – Blok 2 (Vlastníci)', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginOrRegister(page);
+  });
+
+  test('owners page loads with empty state', async ({ page }) => {
+    await page.goto('/vlastnici');
+    await expect(page.getByRole('heading', { name: 'Vlastníci', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Žádní vlastníci' })).toBeVisible();
+  });
+
+  test('owners sidebar link navigates correctly', async ({ page }) => {
+    await page.click('#sidebar a[href="/vlastnici"]');
+    await expect(page).toHaveURL(/\/vlastnici/);
+    await expect(page.getByRole('heading', { name: 'Vlastníci', exact: true })).toBeVisible();
+  });
+
+  test('owners filter bubbles are visible', async ({ page }) => {
+    await page.goto('/vlastnici');
+    await expect(page.getByText('Všichni (0)')).toBeVisible();
+    await expect(page.getByText('Fyzické (0)')).toBeVisible();
+    await expect(page.getByText('Právnické (0)')).toBeVisible();
+  });
+
+  test('owners search input is present', async ({ page }) => {
+    await page.goto('/vlastnici');
+    const searchInput = page.locator('input[name="search"]');
+    await expect(searchInput).toBeVisible();
+    await searchInput.fill('test');
+    await searchInput.press('Enter');
+    await expect(page).toHaveURL(/search=test/);
+  });
+
+  test('owners export button is visible', async ({ page }) => {
+    await page.goto('/vlastnici');
+    const exportLink = page.getByRole('link', { name: 'Export' });
+    await expect(exportLink).toBeVisible();
+  });
+
+  test('keyboard shortcut G+V navigates to owners', async ({ page }) => {
+    await page.keyboard.press('g');
+    await page.waitForTimeout(100);
+    await page.keyboard.press('v');
+    await page.waitForTimeout(500);
+    await expect(page).toHaveURL(/\/vlastnici/);
+  });
+});
