@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}{{ session.name }} – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <!-- Page header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <a href="/synchronizace" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            </a>
+            <div>
+                <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ session.name }}</h1>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ session.created_at | datum }}
+                    {% if session.source_format %} — Formát: {{ session.source_format }}{% endif %}
+                </p>
+            </div>
+        </div>
+        <form method="post" action="/synchronizace/{{ session.id }}/smazat" class="inline" onsubmit="return confirm('Opravdu smazat kontrolu?')">
+            <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition" title="Smazat">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Smazat
+            </button>
+        </form>
+    </div>
+
+    <!-- Filter bubbles -->
+    <div class="flex flex-wrap gap-2">
+        <a href="/synchronizace/{{ session.id }}"
+           class="inline-flex px-3 py-1 text-sm font-medium rounded-full transition
+                  {% if not status_filter %}bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-2 ring-primary-300 dark:ring-primary-700
+                  {% else %}bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-600{% endif %}">
+            Vše ({{ total }})
+        </a>
+        {% for st, cnt in status_counts.items() %}
+        <a href="/synchronizace/{{ session.id }}?status={{ st }}"
+           class="inline-flex px-3 py-1 text-sm font-medium rounded-full transition
+                  {% if status_filter == st %}bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-2 ring-primary-300 dark:ring-primary-700
+                  {% else %}
+                    {% if st == 'shoda' %}bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200
+                    {% elif st == 'rozdílní' %}bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200
+                    {% elif st == 'částečná' or st == 'přeházená' %}bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200
+                    {% elif st == 'rozdílné_podíly' %}bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-200
+                    {% else %}bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200{% endif %}
+                  {% endif %}">
+            {{ st | replace('_', ' ') | capitalize }} ({{ cnt }})
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Records table -->
+    {% if records %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Jednotka</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Evidence (DB)</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">CSV</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Podíl DB</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Podíl CSV</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
+                    {% for r in records %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/30" id="sync-{{ r.id }}">
+                        <td class="px-4 py-2.5">
+                            {% if r.unit %}
+                            <a href="/jednotky/{{ r.unit_id }}" class="text-primary-600 dark:text-primary-400 hover:underline">{{ r.unit.unit_number }}</a>
+                            {% else %}–{% endif %}
+                        </td>
+                        <td class="px-4 py-2.5 text-gray-900 dark:text-white">{{ r.db_owner_name or '–' }}</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400">{{ r.csv_owner_name or '–' }}</td>
+                        <td class="px-4 py-2.5 text-gray-500">{{ r.db_share or '–' }}</td>
+                        <td class="px-4 py-2.5 text-gray-500">{{ r.csv_share or '–' }}</td>
+                        <td class="px-4 py-2.5">
+                            <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full
+                                {% if r.status == 'shoda' %}bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300
+                                {% elif r.status == 'rozdílní' %}bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300
+                                {% elif r.status in ['částečná', 'přeházená'] %}bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300
+                                {% elif r.status == 'rozdílné_podíly' %}bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300
+                                {% else %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300{% endif %}">
+                                {{ r.status | replace('_', ' ') }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center">
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+            {% if status_filter %}Žádné záznamy s tímto statusem.{% else %}Žádné záznamy.{% endif %}
+        </p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
