@@ -2,7 +2,7 @@
 import os
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -45,7 +45,7 @@ def tax_create_page(request: Request, db: Session = Depends(get_db)):
 @router.post("/dane/nova")
 def tax_create(
     request: Request,
-    name: str = __import__("fastapi").Form(...),
+    name: str = Form(...),
     db: Session = Depends(get_db),
 ):
     """Create a new tax session."""
@@ -222,7 +222,7 @@ def tax_manual_assignment(
     session_id: int,
     doc_id: int,
     request: Request,
-    owner_id: int = __import__("fastapi").Form(...),
+    owner_id: int = Form(...),
     db: Session = Depends(get_db),
 ):
     """Manually assign a document to an owner."""

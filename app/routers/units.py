@@ -1,4 +1,6 @@
 """Unit management routes."""
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -8,6 +10,36 @@ from app.database import get_db
 from app.models.owner import Owner, OwnerUnit, Unit
 
 router = APIRouter()
+
+
+def _parse_unit_fields(
+    floor_area: str, lv_number: str
+) -> tuple:
+    """Parse numeric form fields safely. Returns (floor_area_float, lv_number_int, error_msg)."""
+    fa = 0.0
+    lv = None
+    if floor_area:
+        try:
+            fa = float(floor_area)
+        except ValueError:
+            return None, None, "Neplatná hodnota plochy."
+    if lv_number:
+        try:
+            lv = int(lv_number)
+        except ValueError:
+            return None, None, "Neplatná hodnota LV."
+    return fa, lv, None
+
+
+def _require_editor(request: Request, db: Session):
+    """Check that current user has editor or admin role. Returns (user, error_response)."""
+    user = get_current_user(request, db)
+    if user is None:
+        return None, RedirectResponse(url="/login", status_code=303)
+    if user.role not in ("admin", "editor"):
+        request.session["flash"] = {"type": "error", "message": "Nemáte oprávnění."}
+        return None, RedirectResponse(url="/jednotky", status_code=303)
+    return user, None
 
 
 @router.get("/jednotky", response_class=HTMLResponse)
@@ -105,9 +137,15 @@ def unit_create(
     db: Session = Depends(get_db),
 ):
     """Create a new unit."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, err = _require_editor(request, db)
+    if err:
+        return err
+
+    # Parse numeric fields
+    fa, lv, parse_err = _parse_unit_fields(floor_area, lv_number)
+    if parse_err:
+        request.session["flash"] = {"type": "error", "message": parse_err}
+        return RedirectResponse(url="/jednotky", status_code=303)
 
     # Check for duplicate
     existing = db.query(Unit).filter(Unit.unit_number == unit_number).first()
@@ -120,10 +158,10 @@ def unit_create(
         building_number=building_number,
         space_type=space_type,
         section=section,
-        floor_area=float(floor_area) if floor_area else 0.0,
+        floor_area=fa,
         room_count=room_count,
         address=address,
-        lv_number=int(lv_number) if lv_number else None,
+        lv_number=lv,
     )
     db.add(unit)
     db.commit()
@@ -215,22 +253,28 @@ def unit_update(
     db: Session = Depends(get_db),
 ):
     """Update unit fields."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, err = _require_editor(request, db)
+    if err:
+        return err
 
     unit = db.query(Unit).filter(Unit.id == unit_id).first()
     if unit is None:
         return HTMLResponse("Jednotka nenalezena", status_code=404)
 
+    # Parse numeric fields
+    fa, lv, parse_err = _parse_unit_fields(floor_area, lv_number)
+    if parse_err:
+        request.session["flash"] = {"type": "error", "message": parse_err}
+        return RedirectResponse(url=f"/jednotky/{unit_id}", status_code=303)
+
     unit.unit_number = unit_number
     unit.building_number = building_number
     unit.space_type = space_type
     unit.section = section
-    unit.floor_area = float(floor_area) if floor_area else 0.0
+    unit.floor_area = fa
     unit.room_count = room_count
     unit.address = address
-    unit.lv_number = int(lv_number) if lv_number else None
+    unit.lv_number = lv
     db.commit()
 
     request.session["flash"] = {"type": "success", "message": "Jednotka aktualizována."}
@@ -242,9 +286,9 @@ def unit_delete(
     unit_id: int, request: Request, db: Session = Depends(get_db)
 ):
     """Delete unit with cascade (OwnerUnit links)."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, err = _require_editor(request, db)
+    if err:
+        return err
 
     unit = db.query(Unit).filter(Unit.id == unit_id).first()
     if unit is None:
