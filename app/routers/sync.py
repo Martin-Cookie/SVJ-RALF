@@ -5,7 +5,7 @@ import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -213,6 +213,185 @@ def sync_delete(
         request.session["flash"] = {"type": "success", "message": "Synchronizace smazána."}
 
     return RedirectResponse(url="/synchronizace", status_code=303)
+
+
+@router.post("/synchronizace/{session_id}/prijmout/{rec_id}")
+def sync_accept_record(
+    session_id: int, rec_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Accept (mark as resolved) a sync record."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    rec = db.query(SyncRecord).filter(
+        SyncRecord.id == rec_id, SyncRecord.session_id == session_id
+    ).first()
+    if rec:
+        rec.is_resolved = 1
+        db.commit()
+        request.session["flash"] = {"type": "success", "message": "Záznam přijat."}
+
+    return RedirectResponse(url=f"/synchronizace/{session_id}", status_code=303)
+
+
+@router.post("/synchronizace/{session_id}/odmitnout/{rec_id}")
+def sync_reject_record(
+    session_id: int, rec_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Reject (mark as resolved/rejected) a sync record."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    rec = db.query(SyncRecord).filter(
+        SyncRecord.id == rec_id, SyncRecord.session_id == session_id
+    ).first()
+    if rec:
+        rec.is_resolved = 1
+        rec.status = "odmítnuto"
+        db.commit()
+        request.session["flash"] = {"type": "success", "message": "Záznam odmítnut."}
+
+    return RedirectResponse(url=f"/synchronizace/{session_id}", status_code=303)
+
+
+@router.post("/synchronizace/{session_id}/aktualizovat")
+async def sync_selective_update(
+    session_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Apply selective updates from CSV for selected records."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    form = await request.form()
+    record_ids = form.getlist("record_ids")
+
+    updated = 0
+    for rid_str in record_ids:
+        try:
+            rid = int(rid_str)
+        except (ValueError, TypeError):
+            continue
+
+        rec = db.query(SyncRecord).filter(
+            SyncRecord.id == rid, SyncRecord.session_id == session_id
+        ).first()
+        if rec and rec.unit_id:
+            # Update owner name from CSV if different
+            from app.models.owner import Owner, OwnerUnit
+            ou = db.query(OwnerUnit).filter(
+                OwnerUnit.unit_id == rec.unit_id, OwnerUnit.valid_to.is_(None)
+            ).first()
+            if ou:
+                owner = db.query(Owner).filter(Owner.id == ou.owner_id).first()
+                if owner and rec.csv_owner_name:
+                    # Update share if different
+                    if rec.csv_share:
+                        try:
+                            ou.votes = int(rec.csv_share)
+                        except (ValueError, TypeError):
+                            pass
+                rec.is_resolved = 1
+                updated += 1
+
+    db.commit()
+    request.session["flash"] = {"type": "success", "message": f"Aktualizováno {updated} záznamů."}
+    return RedirectResponse(url=f"/synchronizace/{session_id}", status_code=303)
+
+
+@router.post("/synchronizace/{session_id}/aplikovat-kontakty")
+def sync_apply_contacts(
+    session_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Transfer contact info from CSV records to DB owners."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    ss = db.query(SyncSession).filter(SyncSession.id == session_id).first()
+    if ss is None:
+        return HTMLResponse("Synchronizace nenalezena", status_code=404)
+
+    # Mark all unresolved records as resolved for contact transfer
+    records = db.query(SyncRecord).filter(
+        SyncRecord.session_id == session_id,
+        SyncRecord.is_resolved == 0,
+    ).all()
+
+    transferred = 0
+    for rec in records:
+        if rec.csv_data:
+            import json
+            try:
+                csv_row = json.loads(rec.csv_data)
+                # Transfer email/phone if available
+                if rec.unit_id:
+                    from app.models.owner import OwnerUnit, Owner
+                    ou = db.query(OwnerUnit).filter(
+                        OwnerUnit.unit_id == rec.unit_id, OwnerUnit.valid_to.is_(None)
+                    ).first()
+                    if ou:
+                        owner = db.query(Owner).filter(Owner.id == ou.owner_id).first()
+                        if owner:
+                            for key in ["email", "telefon", "phone"]:
+                                if key in csv_row and csv_row[key]:
+                                    if key in ("telefon", "phone"):
+                                        owner.phone = csv_row[key]
+                                    else:
+                                        owner.email = csv_row[key]
+                                    transferred += 1
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+    db.commit()
+    request.session["flash"] = {"type": "success", "message": f"Kontakty přeneseny ({transferred})."}
+    return RedirectResponse(url=f"/synchronizace/{session_id}", status_code=303)
+
+
+@router.post("/synchronizace/{session_id}/exportovat")
+def sync_export(
+    session_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Export sync comparison to Excel."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    ss = db.query(SyncSession).filter(SyncSession.id == session_id).first()
+    if ss is None:
+        return HTMLResponse("Synchronizace nenalezena", status_code=404)
+
+    records = db.query(SyncRecord).filter(SyncRecord.session_id == session_id).all()
+
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Synchronizace"
+    ws.append(["Jednotka", "Vlastník (DB)", "Vlastník (CSV)", "Podíl (DB)", "Podíl (CSV)", "Status"])
+
+    for rec in records:
+        unit_num = ""
+        if rec.unit_id:
+            from app.models.owner import Unit
+            unit = db.query(Unit).filter(Unit.id == rec.unit_id).first()
+            if unit:
+                unit_num = str(unit.unit_number)
+        ws.append([
+            unit_num, rec.db_owner_name, rec.csv_owner_name,
+            rec.db_share, rec.csv_share, rec.status,
+        ])
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=synchronizace_{session_id}.xlsx"},
+    )
 
 
 # --- Helper functions ---

@@ -169,6 +169,103 @@ def admin_delete_member(
     return RedirectResponse(url="/sprava", status_code=303)
 
 
+@router.post("/sprava/clen/{member_id}/upravit")
+def admin_edit_member(
+    member_id: int,
+    request: Request,
+    name: str = Form(...),
+    role: str = Form("Člen"),
+    email: str = Form(""),
+    phone: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Edit a board/control member."""
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    member = db.query(BoardMember).filter(BoardMember.id == member_id).first()
+    if member is None:
+        return HTMLResponse("Člen nenalezen", status_code=404)
+
+    member.name = name
+    member.role = role
+    member.email = email
+    member.phone = phone
+    db.commit()
+
+    request.session["flash"] = {"type": "success", "message": "Člen aktualizován."}
+    return RedirectResponse(url="/sprava", status_code=303)
+
+
+@router.post("/sprava/adresa/pridat")
+def admin_add_address(
+    request: Request,
+    street: str = Form(""),
+    city: str = Form(""),
+    zip_code: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Add an SVJ address."""
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    addr = SvjAddress(street=street, city=city, zip_code=zip_code)
+    db.add(addr)
+    db.commit()
+
+    request.session["flash"] = {"type": "success", "message": "Adresa přidána."}
+    return RedirectResponse(url="/sprava", status_code=303)
+
+
+@router.post("/sprava/adresa/{addr_id}/upravit")
+def admin_edit_address(
+    addr_id: int,
+    request: Request,
+    street: str = Form(""),
+    city: str = Form(""),
+    zip_code: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Edit an SVJ address."""
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    addr = db.query(SvjAddress).filter(SvjAddress.id == addr_id).first()
+    if addr is None:
+        return HTMLResponse("Adresa nenalezena", status_code=404)
+
+    addr.street = street
+    addr.city = city
+    addr.zip_code = zip_code
+    db.commit()
+
+    request.session["flash"] = {"type": "success", "message": "Adresa aktualizována."}
+    return RedirectResponse(url="/sprava", status_code=303)
+
+
+@router.post("/sprava/adresa/{addr_id}/smazat")
+def admin_delete_address(
+    addr_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Delete an SVJ address."""
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    addr = db.query(SvjAddress).filter(SvjAddress.id == addr_id).first()
+    if addr:
+        db.delete(addr)
+        db.commit()
+        request.session["flash"] = {"type": "success", "message": "Adresa smazána."}
+
+    return RedirectResponse(url="/sprava", status_code=303)
+
+
 # --- User Management ---
 
 
