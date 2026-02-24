@@ -93,3 +93,80 @@ Fáze 0 → Feature Blok 1 (setup + datový model + dashboard + auth).
 Blok 1 kompletní. Pokračuji Blokem 2 (Evidence vlastníků) — CRUD, Excel import/export, filtrační bubliny, inline editace.
 
 ---
+
+## Iterace 2 – 2026-02-24
+📍 Status: Iterace 2/3+ | Feature blok: 2 (Evidence vlastníků) | Bloky zbývají: 8
+
+### GATE Status
+- GATE 1: PASSED — Blok 2 built, testy 32/32, screenshoty 3/3, interaction 15/15
+- GATE 2: PASSED — review ze 6 rolí provedeno, findings zalogovány
+- GATE 2b: PASSED — CRITICAL/HIGH fixy aplikovány, testy OK, post-fix screenshoty OK
+
+### Změny
+- [5d45627] `test:` add owners module tests (RED state)
+- [403fcb3] `feat:` implement owners module (Evidence vlastníků)
+- [8a7cd3e] `test:` add Blok 2 Playwright interaction tests + owners screenshots
+- [52ea626] `fix:` add Excel import, HTMX inline editing, ownership history
+
+### Review Findings (všech 6 rolí)
+
+| # | Role | Finding / Verdikt | Severity | Status |
+|---|------|-------------------|----------|--------|
+| 1 | CEO | CRUD vlastníků implementován (list, detail, update, add/remove unit, export) | — | OK |
+| 2 | CEO | Chyběl Excel import (core PRD feature pro Blok 2) | HIGH | FIXED |
+| 3 | CEO | Chyběla HTMX inline editace kontaktů | HIGH | FIXED |
+| 4 | CEO | Chyběla ownership history (historie vlastnictví) | MEDIUM | FIXED |
+| 5 | CEO | Pokročilé filtry (sekce, typ vlastnictví, s/bez emailu) → Blok 3+ | MEDIUM | OPEN → iter 3 |
+| 6 | CEO | Column sorting by click → Blok 3+ | LOW | OPEN → iter 3 |
+| 7 | CTO | TDD compliance: test: (5d45627) → feat: (403fcb3) → test: (8a7cd3e) ✅ | — | OK |
+| 8 | CTO | Query.get() deprecation warning v testu | LOW | OPEN |
+| 9 | CTO | Route ordering: /import musí být před /{owner_id} | HIGH | FIXED |
+| 10 | CTO | python-multipart CVE (0.0.12 → 0.0.18) | HIGH | FIXED |
+| 11 | CPO | Screenshoty profesionální na 3 viewportech | — | OK |
+| 12 | CPO | 15/15 interaction testů prochází (9 Blok 1 + 6 Blok 2) | — | OK |
+| 13 | CPO | Import button přidán na seznam vlastníků | — | OK |
+| 14 | CPO | Empty state + filter bubbles fungují | — | OK |
+| 15 | Security | python-multipart CVE GHSA-59g5-xgcq-4qw3 | HIGH | FIXED |
+| 16 | Security | starlette CVE (0.38.6) — FastAPI 0.115.0 pinuje starlette | MEDIUM | OPEN → iter 3 |
+| 17 | Security | Žádné hardcoded credentials, session auth bezpečná | — | OK |
+| 18 | QA | Unit 32/32, Interaction 15/15, Visual 3/3 | — | OK |
+| 19 | QA | Import flow zatím bez E2E testu (session-based preview) | MEDIUM | OPEN → iter 3 |
+| 20 | Designer | Clean layout owners list/detail, filter bubbles, responsive | — | OK |
+| 21 | Designer | Import page s upload formulářem a historií | — | OK |
+| 22 | Designer | Ownership history collapsible section | — | OK |
+
+### Visual Check
+- **After Build:** Desktop ✅ / Tablet ✅ / Mobile ✅ → `screenshots/iter-2-build-*.png`
+- **After Review (fresh):** Desktop ✅ / Tablet ✅ / Mobile ✅ → `screenshots/iter-2-review-*.png`
+- **After Fix:** Desktop ✅ / Tablet ✅ / Mobile ✅ → `screenshots/iter-2-fix-*.png`
+
+### Interaction Check
+- Tlačítka: Import, Export, filter bubbles, detail link → ✅
+- Formuláře: search, contact edit → ✅
+- Navigace/linky: sidebar /vlastnici, G+V shortcut, detail back link → ✅
+- Hlavní user flow: dashboard → vlastníci → search → filter → detail → edit → save ✅ end-to-end OK
+- Error states: 404 on nonexistent owner ✅
+
+### Testy
+- Unit: 32/32 | Integration: — | E2E (Playwright): 15/15 | Visual: 3/3
+
+### Verdict tabulka
+
+| Role | Verdict | Odůvodnění | Open |
+|------|---------|------------|------|
+| CEO | APPROVED | Core Blok 2 features implementovány: CRUD, import, export, filter bubbles, detail, history. Pokročilé filtry do iter 3. | 2 |
+| CTO | APPROVED | TDD dodrženo, route ordering fix, CVE fix (python-multipart). 32/32 testů prochází. | 2 |
+| CPO | APPROVED | Profesionální UI na 3 viewportech, 15/15 interaction testů, import flow přidán. | 0 |
+| Security | APPROVED | python-multipart CVE fixnut. Starlette CVE medium priority (pinned by FastAPI). | 1 |
+| QA | APPROVED | 32/32 unit + 15/15 E2E + 3/3 visual. Import E2E test do iter 3. | 1 |
+| Designer | APPROVED | Konzistentní design, filter bubbles, empty state, responsive, collapsible history. | 0 |
+
+### AGENTS.md update
+- Route ordering: statické cesty (/vlastnici/import, /vlastnici/export) MUSÍ být před parametrickými (/vlastnici/{id})
+- Playwright: getByRole s { exact: true } pro heading matchování kde existuje subsstring match
+- ImportLog model: používá source+records_count+status (ne module+row_count)
+
+### Souhrn + plán další iterace
+Blok 2 kompletní. Pokračuji Blokem 3 (Evidence jednotek) — CRUD jednotek, prokliky vlastník↔jednotka, inline editace.
+
+---
