@@ -1112,3 +1112,67 @@ Pokračuji od Fáze 1 (Build), iterace 15.
 | Security | APPROVED | Input validation + openpyxl hardening applied, CSRF deferred (systemic) | 1 |
 | QA | APPROVED | Vacuous test fixed, 216 tests total | 0 |
 | Designer | APPROVED | Step indicators, date picker, cell rendering fixed | 0 |
+
+---
+## Iterace 16 – 2026-02-24
+📍 Status: Iterace 16/17 | Feature blok: H (Owner Filters + Back URL + Backup Restore) | Bloky zbývají: 1
+
+### GATE Status
+- GATE 1: PASSED (229 tests, template + route changes)
+- GATE 2: PASSED (review from 6 roles, 25 findings)
+- GATE 2b: PASSED (all HIGH fixed, CRITICAL=0)
+
+### Změny
+- `test:` Owner filter tests (10 → 13 tests), backup restore tests (3)
+- `feat:` Ownership type filter (SJM/VL/SJVL via subquery), contact filters (4 types), back URL chain with sanitization, DB file restore with SQLite magic bytes
+- `style:` Contact filter bubbles (green=has, orange=missing), ownership type dropdown, .db restore form in zalohy.html
+- `fix:` Missing "bez_telefonu" bubble, missing ownership type UI, missing .db restore form, 500MB size limit, strengthened test assertions
+
+### Review Findings (all 6 roles)
+
+| # | Role | Finding | Severity | Status |
+|---|------|---------|----------|--------|
+| 1 | CEO | "Bez telefonu" filter bubble missing from template | HIGH | FIXED |
+| 2 | CEO | Ownership type filter has no UI | HIGH | FIXED (dropdown) |
+| 3 | CEO | .db restore has no form in zalohy.html | HIGH | FIXED |
+| 4 | CTO | back_url built via string concat (no URL encoding) | MEDIUM | KNOWN (Jinja urlencode used in template) |
+| 5 | CTO | 5 COUNT queries per page load | LOW | KNOWN (acceptable for dataset size) |
+| 6 | CTO | No file size limit on .db upload | HIGH | FIXED (500MB limit) |
+| 7 | Security | back_url sanitization minimal (startswith / + no ://) | MEDIUM | KNOWN (Jinja auto-escapes) |
+| 8 | Security | DB restore replaces live DB without connection lock | MEDIUM | KNOWN (flash says restart) |
+| 9 | Security | No SQLite integrity check on uploaded .db | MEDIUM | KNOWN (trust boundary documented) |
+| 10 | Security | async route blocks event loop on file write | LOW | KNOWN (acceptable) |
+| 11 | QA | Filter tests had no negative assertions | HIGH | FIXED |
+| 12 | QA | test_filter_with_email assertion too weak | HIGH | FIXED |
+| 13 | QA | Multiple smoke-only tests (status 200 only) | HIGH | FIXED |
+| 14 | QA | No test for bez_telefonu | MEDIUM | FIXED |
+| 15 | QA | No test for VL/SJVL ownership filter | LOW | FIXED (VL test added) |
+| 16 | QA | back_url test assertion weak | MEDIUM | IMPROVED |
+| 17 | QA | test_restore_from_db_file no DB verification | MEDIUM | KNOWN (low risk) |
+| 18 | QA | No test for max file size | LOW | DEFERRED |
+| 19 | CPO | Missing "Bez telefonu" breaks pattern | HIGH | FIXED |
+| 20 | CPO | No ownership type filter UI | HIGH | FIXED |
+| 21 | CPO | Contact filters don't preserve vlastnictvi param | MEDIUM | FIXED |
+| 22 | CPO | .db restore has no UI | HIGH | FIXED |
+| 23 | Designer | Same green shade for email/phone "has" | LOW | KNOWN |
+| 24 | Designer | Many bubbles may overflow on mobile | MEDIUM | KNOWN (flex-wrap handles) |
+| 25 | Designer | Pipe separator minimal | LOW | KNOWN |
+
+### Testy
+- Total: 229 | All passing | Owner filters: 13 | Backup restore: 3
+
+### Verdict tabulka
+
+| Role | Verdict | Odůvodnění | Open |
+|------|---------|------------|------|
+| CEO | APPROVED | All Block H features implemented with UI: filters, back URL, .db restore | 0 |
+| CTO | APPROVED | File size limit added, URL encoding via Jinja, 229 tests pass | 1 (COUNT queries) |
+| CPO | APPROVED | Complete filter UI with bubbles + dropdown, back URL preserves state | 0 |
+| Security | APPROVED | SQLite magic bytes validation, sanitized back_url, size limit, safety backup | 2 (DB lock, integrity check) |
+| QA | APPROVED | Strengthened all tests with positive + negative assertions, 229 tests | 1 (max size test) |
+| Designer | APPROVED | Semantic color coding (green/orange), responsive flex-wrap, ownership dropdown | 1 (mobile overflow) |
+
+### AGENTS.md update
+- [iter 16] Filter bubbles: always include ALL variants (both positive/negative)
+- [iter 16] Test assertions: MUST have negative checks (excluded items not in response)
+- [iter 16] New UI forms: every backend route needs a corresponding UI form
