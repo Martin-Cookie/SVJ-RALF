@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Automatické zálohy – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Automatické zálohy</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Nastavení automatického zálohování</p>
+        </div>
+        <a href="/sprava/zalohy" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">← Zpět na zálohy</a>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+        <form method="post" action="/sprava/auto-zalohy" class="space-y-4">
+            <div class="flex items-center gap-3">
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" name="is_enabled" value="on" class="sr-only peer"
+                           {% if config and config.is_enabled %}checked{% endif %}>
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600"></div>
+                </label>
+                <span class="text-sm font-medium text-gray-900 dark:text-white">Automatické zálohy zapnuty</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Frekvence</label>
+                    <select name="frequency" class="w-full h-9 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg">
+                        <option value="daily" {% if not config or config.frequency == 'daily' %}selected{% endif %}>Denně</option>
+                        <option value="weekly" {% if config and config.frequency == 'weekly' %}selected{% endif %}>Týdně</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Čas</label>
+                    <input type="time" name="time" value="{{ config.time if config else '02:00' }}"
+                           class="w-full h-9 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Max. záloh</label>
+                    <input type="number" name="max_backups" value="{{ config.max_backups if config else 7 }}" min="1" max="100"
+                           class="w-full h-9 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg">
+                </div>
+            </div>
+
+            {% if config and config.last_run %}
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                Poslední záloha: {{ config.last_run.strftime('%d.%m.%Y %H:%M') }}
+            </p>
+            {% endif %}
+
+            <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                Uložit nastavení
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

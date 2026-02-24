@@ -1035,3 +1035,120 @@ def voting_delete(
         request.session["flash"] = {"type": "success", "message": "Hlasování smazáno."}
 
     return RedirectResponse(url="/hlasovani", status_code=303)
+
+
+# --- Voting Proxy (Plné moci) ---
+
+
+@router.get("/hlasovani/{voting_id}/plne-moci", response_class=HTMLResponse)
+def voting_proxy_list(
+    voting_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Show proxy management page for a voting."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+
+    from app.models.owner import Proxy, Owner
+
+    proxies = db.query(Proxy).filter(Proxy.voting_id == voting_id).all()
+
+    # Get all active owners for the dropdowns
+    owners = (
+        db.query(Owner)
+        .filter(Owner.is_active == True)  # noqa: E712
+        .order_by(Owner.name_normalized)
+        .all()
+    )
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "voting/plne_moci.html",
+        {"user": user, "voting": voting, "proxies": proxies, "owners": owners},
+    )
+
+
+@router.post("/hlasovani/{voting_id}/plne-moci/pridat")
+def voting_proxy_add(
+    voting_id: int,
+    request: Request,
+    grantor_id: int = Form(...),
+    grantee_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Add a proxy delegation."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+
+    # Cannot proxy to self
+    if grantor_id == grantee_id:
+        request.session["flash"] = {"type": "error", "message": "Nelze udělit plnou moc sám sobě."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/plne-moci", status_code=303)
+
+    from app.models.owner import Proxy, Owner
+
+    # Validate both owners exist
+    grantor = db.query(Owner).filter(Owner.id == grantor_id).first()
+    grantee = db.query(Owner).filter(Owner.id == grantee_id).first()
+    if not grantor or not grantee:
+        request.session["flash"] = {"type": "error", "message": "Vlastník nenalezen."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/plne-moci", status_code=303)
+
+    # Check for duplicate
+    existing = (
+        db.query(Proxy)
+        .filter(
+            Proxy.voting_id == voting_id,
+            Proxy.grantor_id == grantor_id,
+        )
+        .first()
+    )
+    if existing:
+        request.session["flash"] = {"type": "error", "message": f"{grantor.display_name} již delegoval plnou moc."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/plne-moci", status_code=303)
+
+    proxy = Proxy(voting_id=voting_id, grantor_id=grantor_id, grantee_id=grantee_id)
+    db.add(proxy)
+    db.commit()
+
+    request.session["flash"] = {
+        "type": "success",
+        "message": f"Plná moc: {grantor.display_name} → {grantee.display_name}",
+    }
+    return RedirectResponse(url=f"/hlasovani/{voting_id}/plne-moci", status_code=303)
+
+
+@router.post("/hlasovani/{voting_id}/plne-moci/{proxy_id}/smazat")
+def voting_proxy_delete(
+    voting_id: int,
+    proxy_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Delete a proxy delegation."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    from app.models.owner import Proxy
+
+    proxy = (
+        db.query(Proxy)
+        .filter(Proxy.id == proxy_id, Proxy.voting_id == voting_id)
+        .first()
+    )
+    if proxy:
+        db.delete(proxy)
+        db.commit()
+        request.session["flash"] = {"type": "success", "message": "Plná moc smazána."}
+
+    return RedirectResponse(url=f"/hlasovani/{voting_id}/plne-moci", status_code=303)

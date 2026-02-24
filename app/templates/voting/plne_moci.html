@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Plné moci – {{ voting.name }} – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center gap-3">
+        <a href="/hlasovani/{{ voting.id }}" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition" title="Zpět na hlasování">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Plné moci</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ voting.name }}</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Add proxy form -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-3">Přidat plnou moc</h2>
+            <form method="post" action="/hlasovani/{{ voting.id }}/plne-moci/pridat" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Zmocnitel (kdo deleguje)</label>
+                    <select name="grantor_id" class="w-full h-9 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg">
+                        {% for owner in owners %}
+                        <option value="{{ owner.id }}">{{ owner.display_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Zmocněnec (kdo hlasuje za)</label>
+                    <select name="grantee_id" class="w-full h-9 px-3 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg">
+                        {% for owner in owners %}
+                        <option value="{{ owner.id }}">{{ owner.display_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="w-full px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                    Přidat plnou moc
+                </button>
+            </form>
+        </div>
+
+        <!-- Proxy list -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-3">Udělené plné moci ({{ proxies | length }})</h2>
+            {% if proxies %}
+            <div class="space-y-2">
+                {% for p in proxies %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                    <div>
+                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ p.grantor.display_name }}</span>
+                        <span class="text-gray-400 mx-1">→</span>
+                        <span class="text-sm font-medium text-primary-600 dark:text-primary-400">{{ p.grantee.display_name }}</span>
+                    </div>
+                    <form method="post" action="/hlasovani/{{ voting.id }}/plne-moci/{{ p.id }}/smazat" class="inline">
+                        <button type="submit" class="text-xs text-red-500 hover:text-red-700 transition" title="Smazat">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400">Žádné plné moci.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

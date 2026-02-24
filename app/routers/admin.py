@@ -679,6 +679,84 @@ async def backup_restore_db_file(
     return RedirectResponse(url="/sprava/zalohy", status_code=303)
 
 
+# --- Automatic Backup Config ---
+
+
+@router.get("/sprava/auto-zalohy", response_class=HTMLResponse)
+def auto_backup_config_page(request: Request, db: Session = Depends(get_db)):
+    """Show automatic backup configuration (admin only)."""
+    from app.models.administration import AutoBackupConfig
+
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    config = db.query(AutoBackupConfig).first()
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "admin/auto_zalohy.html",
+        {"user": user, "config": config},
+    )
+
+
+@router.post("/sprava/auto-zalohy")
+def auto_backup_config_save(
+    request: Request,
+    frequency: str = Form("daily"),
+    time: str = Form("02:00"),
+    max_backups: str = Form("7"),
+    is_enabled: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Save automatic backup configuration (admin only)."""
+    from app.models.administration import AutoBackupConfig
+
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    config = db.query(AutoBackupConfig).first()
+    if config is None:
+        config = AutoBackupConfig()
+        db.add(config)
+
+    if frequency not in ("daily", "weekly"):
+        frequency = "daily"
+
+    try:
+        max_b = int(max_backups)
+        if max_b < 1:
+            max_b = 1
+        if max_b > 100:
+            max_b = 100
+    except (ValueError, TypeError):
+        max_b = 7
+
+    config.frequency = frequency
+    config.time = time
+    config.max_backups = max_b
+    config.is_enabled = is_enabled == "on"
+
+    db.commit()
+
+    # Run auto-backup cleanup: remove old auto_ prefixed backups beyond max_backups
+    if os.path.exists(_BACKUP_DIR):
+        auto_backups = sorted(
+            [f for f in os.listdir(_BACKUP_DIR) if f.startswith("auto_") and f.endswith(".zip")],
+            reverse=True,
+        )
+        for old_backup in auto_backups[max_b:]:
+            fpath = os.path.join(_BACKUP_DIR, old_backup)
+            try:
+                os.remove(fpath)
+            except OSError:
+                pass
+
+    request.session["flash"] = {"type": "success", "message": "Nastavení auto-záloh uloženo."}
+    return RedirectResponse(url="/sprava/auto-zalohy", status_code=303)
+
+
 # --- Data Deletion (Danger Zone) ---
 
 
