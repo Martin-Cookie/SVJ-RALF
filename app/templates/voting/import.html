@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Import hlasování – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center gap-3">
+        <a href="/hlasovani/{{ voting.id }}" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition" title="Zpět">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Import výsledků hlasování</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ voting.name }}</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Upload form -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Nahrát Excel</h2>
+            <form method="post" action="/hlasovani/{{ voting.id }}/import" enctype="multipart/form-data" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Excel soubor (.xlsx)</label>
+                    <input type="file" name="file" accept=".xlsx,.xls" required
+                           class="w-full text-sm text-gray-600 dark:text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-primary-50 dark:file:bg-primary-900/30 file:text-primary-700 dark:file:text-primary-300 hover:file:bg-primary-100">
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                    Formát: sloupce Vlastník, Jednotka, pak body hlasování. Hodnoty PRO/PROTI/Zdržel se (nebo 1/0).
+                </p>
+                <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                    Nahrát a zobrazit náhled
+                </button>
+            </form>
+        </div>
+
+        <!-- Info about voting items -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Body hlasování ({{ items | length }})</h2>
+            {% if items %}
+            <ol class="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                {% for item in items %}
+                <li>{{ item.text }}</li>
+                {% endfor %}
+            </ol>
+            {% else %}
+            <p class="text-sm text-gray-500">Žádné body hlasování.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if preview %}
+    <!-- Preview section -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Náhled importu</h2>
+
+        <!-- Stats bubbles -->
+        <div class="flex gap-3 mb-4 flex-wrap">
+            <span class="px-3 py-1.5 text-xs font-medium rounded-full bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400">
+                Celkem: {{ preview.total }}
+            </span>
+            <span class="px-3 py-1.5 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                Přiřazeno: {{ preview.matched }}
+            </span>
+            {% if preview.unmatched > 0 %}
+            <span class="px-3 py-1.5 text-xs font-medium rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+                Nepřiřazeno: {{ preview.unmatched }}
+            </span>
+            {% endif %}
+        </div>
+
+        <!-- Preview table -->
+        {% if preview.rows %}
+        <div class="overflow-x-auto mb-4">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
+                        {% for h in preview.headers %}
+                        <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">{{ h }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
+                    {% for row in preview.rows %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/30">
+                        {% for cell in row %}
+                        <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ cell or "–" }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Confirm button -->
+        <form method="post" action="/hlasovani/{{ voting.id }}/import/potvrdit">
+            <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition">
+                Potvrdit import ({{ preview.total }} záznamů)
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

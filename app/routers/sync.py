@@ -350,6 +350,184 @@ def sync_apply_contacts(
     return RedirectResponse(url=f"/synchronizace/{session_id}", status_code=303)
 
 
+@router.get("/synchronizace/{session_id}/vymena/{rec_id}", response_class=HTMLResponse)
+def sync_exchange_preview(
+    session_id: int, rec_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Preview owner exchange for a sync record."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    ss = db.query(SyncSession).filter(SyncSession.id == session_id).first()
+    if ss is None:
+        return HTMLResponse("Synchronizace nenalezena", status_code=404)
+
+    rec = db.query(SyncRecord).filter(
+        SyncRecord.id == rec_id, SyncRecord.session_id == session_id
+    ).first()
+    if rec is None:
+        return HTMLResponse("Záznam nenalezen", status_code=404)
+
+    # Find potential matches for new owner
+    from app.models.owner import Owner, Unit, OwnerUnit
+    from difflib import SequenceMatcher
+
+    candidates = []
+    if rec.csv_owner_name:
+        owners = db.query(Owner).filter(Owner.is_active == True).all()  # noqa: E712
+        for owner in owners:
+            score = SequenceMatcher(None, rec.csv_owner_name.lower(), owner.display_name.lower()).ratio()
+            if score >= 0.5:
+                candidates.append({"owner": owner, "score": score})
+        candidates.sort(key=lambda x: x["score"], reverse=True)
+
+    unit = db.query(Unit).filter(Unit.id == rec.unit_id).first() if rec.unit_id else None
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "sync/exchange_preview.html",
+        {
+            "user": user,
+            "session": ss,
+            "record": rec,
+            "unit": unit,
+            "candidates": candidates[:10],
+        },
+    )
+
+
+@router.post("/synchronizace/{session_id}/vymena/{rec_id}/potvrdit")
+def sync_exchange_confirm(
+    session_id: int,
+    rec_id: int,
+    request: Request,
+    new_owner_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Confirm owner exchange — set valid_to on old OwnerUnit, create new one."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    rec = db.query(SyncRecord).filter(
+        SyncRecord.id == rec_id, SyncRecord.session_id == session_id
+    ).first()
+    if rec is None:
+        request.session["flash"] = {"type": "error", "message": "Záznam nenalezen."}
+        return RedirectResponse(url=f"/synchronizace/{session_id}", status_code=303)
+
+    from app.models.owner import Owner, OwnerUnit
+    from datetime import date
+
+    # Soft-delete old OwnerUnit
+    if rec.unit_id:
+        old_ous = db.query(OwnerUnit).filter(
+            OwnerUnit.unit_id == rec.unit_id,
+            OwnerUnit.valid_to.is_(None),
+        ).all()
+        for ou in old_ous:
+            ou.valid_to = date.today()
+
+        # Create new OwnerUnit
+        new_ou = OwnerUnit(
+            owner_id=new_owner_id,
+            unit_id=rec.unit_id,
+            valid_from=date.today(),
+        )
+        db.add(new_ou)
+
+    rec.is_resolved = 1
+    db.commit()
+
+    request.session["flash"] = {"type": "success", "message": "Výměna vlastníka provedena."}
+    return RedirectResponse(url=f"/synchronizace/{session_id}", status_code=303)
+
+
+@router.post("/synchronizace/{session_id}/vymena-hromadna", response_class=HTMLResponse)
+def sync_bulk_exchange_preview(
+    session_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Preview bulk owner exchange for all differing records."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    ss = db.query(SyncSession).filter(SyncSession.id == session_id).first()
+    if ss is None:
+        return HTMLResponse("Synchronizace nenalezena", status_code=404)
+
+    records = db.query(SyncRecord).filter(
+        SyncRecord.session_id == session_id,
+        SyncRecord.status == "rozdílní",
+        SyncRecord.is_resolved == 0,
+    ).all()
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "sync/exchange_bulk.html",
+        {"user": user, "session": ss, "records": records},
+    )
+
+
+@router.post("/synchronizace/{session_id}/vymena-hromadna/potvrdit")
+def sync_bulk_exchange_confirm(
+    session_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Confirm bulk owner exchange for all differing records."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    from app.models.owner import Owner, OwnerUnit
+    from datetime import date
+    from difflib import SequenceMatcher
+
+    records = db.query(SyncRecord).filter(
+        SyncRecord.session_id == session_id,
+        SyncRecord.status == "rozdílní",
+        SyncRecord.is_resolved == 0,
+    ).all()
+
+    exchanged = 0
+    for rec in records:
+        if not rec.unit_id or not rec.csv_owner_name:
+            continue
+
+        # Find best matching owner
+        owners = db.query(Owner).filter(Owner.is_active == True).all()  # noqa: E712
+        best_match = None
+        best_score = 0.0
+        for owner in owners:
+            score = SequenceMatcher(None, rec.csv_owner_name.lower(), owner.display_name.lower()).ratio()
+            if score > best_score:
+                best_score = score
+                best_match = owner
+
+        if best_match and best_score >= 0.75:
+            # Soft-delete old
+            old_ous = db.query(OwnerUnit).filter(
+                OwnerUnit.unit_id == rec.unit_id,
+                OwnerUnit.valid_to.is_(None),
+            ).all()
+            for ou in old_ous:
+                ou.valid_to = date.today()
+
+            # Create new
+            new_ou = OwnerUnit(
+                owner_id=best_match.id,
+                unit_id=rec.unit_id,
+                valid_from=date.today(),
+            )
+            db.add(new_ou)
+            rec.is_resolved = 1
+            exchanged += 1
+
+    db.commit()
+    request.session["flash"] = {"type": "success", "message": f"Hromadná výměna: {exchanged} záznamů."}
+    return RedirectResponse(url=f"/synchronizace/{session_id}", status_code=303)
+
+
 @router.post("/synchronizace/{session_id}/exportovat")
 def sync_export(
     session_id: int, request: Request, db: Session = Depends(get_db)

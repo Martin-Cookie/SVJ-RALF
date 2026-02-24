@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Výměna vlastníka – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center gap-3">
+        <a href="/synchronizace/{{ session.id }}" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition" title="Zpět">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Výměna vlastníka</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Jednotka {{ unit.unit_number if unit else "–" }}</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Current owner -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <h2 class="text-sm font-semibold text-red-600 dark:text-red-400 uppercase tracking-wide mb-3">Starý vlastník (DB)</h2>
+            <p class="text-lg font-medium text-gray-900 dark:text-white line-through opacity-60">{{ record.db_owner_name or "–" }}</p>
+        </div>
+
+        <!-- New owner from CSV -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-green-200 dark:border-green-800 p-5">
+            <h2 class="text-sm font-semibold text-green-600 dark:text-green-400 uppercase tracking-wide mb-3">Nový vlastník (CSV)</h2>
+            <p class="text-lg font-medium text-gray-900 dark:text-white">{{ record.csv_owner_name or "–" }}</p>
+        </div>
+    </div>
+
+    <!-- Matching candidates -->
+    {% if candidates %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Nalezení kandidáti</h2>
+        <form method="post" action="/synchronizace/{{ session.id }}/vymena/{{ record.id }}/potvrdit">
+            <div class="space-y-2 mb-4">
+                {% for c in candidates %}
+                <label class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700">
+                    <input type="radio" name="new_owner_id" value="{{ c.owner.id }}" {% if loop.first %}checked{% endif %}
+                           class="text-primary-600 focus:ring-primary-500">
+                    <div class="flex-1">
+                        <span class="font-medium text-sm">{{ c.owner.display_name }}</span>
+                        <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">({{ (c.score * 100) | int }}% shoda)</span>
+                    </div>
+                    <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full
+                        {% if c.score >= 0.9 %}bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300
+                        {% elif c.score >= 0.75 %}bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300
+                        {% else %}bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400{% endif %}">
+                        {% if c.score >= 0.9 %}Přesná{% elif c.score >= 0.75 %}Možná{% else %}Slabá{% endif %}
+                    </span>
+                </label>
+                {% endfor %}
+            </div>
+            <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition">
+                Potvrdit výměnu
+            </button>
+        </form>
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 text-center">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Žádní kandidáti nalezeni. Vytvořte nového vlastníka nejprve.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

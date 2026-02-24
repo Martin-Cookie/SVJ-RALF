@@ -1,5 +1,8 @@
 """Voting management routes."""
+import io
 import os
+import shutil
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -10,6 +13,9 @@ from app.auth import get_current_user
 from app.config import settings
 from app.database import get_db
 from app.models.voting import Voting, VotingItem, Ballot, BallotVote
+
+_IMPORT_TEMP_DIR = os.path.join(settings.UPLOAD_DIR, "_voting_import_temp")
+os.makedirs(_IMPORT_TEMP_DIR, exist_ok=True)
 
 router = APIRouter()
 
@@ -637,6 +643,205 @@ def unsubmitted_ballots(
             "ballots": ballots,
         },
     )
+
+
+@router.get("/hlasovani/{voting_id}/import", response_class=HTMLResponse)
+def voting_import_page(
+    voting_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Show voting result import page."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+
+    items = db.query(VotingItem).filter(VotingItem.voting_id == voting_id).order_by(VotingItem.number).all()
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "voting/import.html",
+        {"user": user, "voting": voting, "items": items, "preview": None},
+    )
+
+
+@router.post("/hlasovani/{voting_id}/import")
+async def voting_import_upload(
+    voting_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Upload Excel with voting results, show preview."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+
+    items = db.query(VotingItem).filter(VotingItem.voting_id == voting_id).order_by(VotingItem.number).all()
+
+    # Save uploaded file to temp directory
+    token = str(uuid.uuid4())
+    temp_path = os.path.join(_IMPORT_TEMP_DIR, f"{token}.xlsx")
+    content = await file.read()
+    with open(temp_path, "wb") as f:
+        f.write(content)
+
+    # Parse Excel for preview
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(temp_path, read_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(min_row=1, values_only=True))
+        wb.close()
+    except Exception as e:
+        request.session["flash"] = {"type": "error", "message": f"Chyba čtení souboru: {e}"}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
+
+    headers = [str(h) if h else "" for h in rows[0]] if rows else []
+    data_rows = rows[1:] if len(rows) > 1 else []
+
+    # Store token for confirm
+    request.session["voting_import_token"] = token
+
+    preview = {
+        "headers": headers,
+        "rows": data_rows[:20],  # Preview first 20
+        "total": len(data_rows),
+        "matched": 0,
+        "unmatched": 0,
+    }
+
+    # Try to match rows to owners/units
+    from app.models.owner import Owner, Unit
+    matched = 0
+    for row in data_rows:
+        if len(row) >= 2:
+            owner_val = str(row[0]) if row[0] else ""
+            unit_val = str(row[1]) if row[1] else ""
+            # Try to find matching ballot
+            if unit_val:
+                try:
+                    unit_num = int(unit_val)
+                    unit = db.query(Unit).filter(Unit.unit_number == unit_num).first()
+                    if unit:
+                        matched += 1
+                except (ValueError, TypeError):
+                    pass
+
+    preview["matched"] = matched
+    preview["unmatched"] = len(data_rows) - matched
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "voting/import.html",
+        {"user": user, "voting": voting, "items": items, "preview": preview},
+    )
+
+
+@router.post("/hlasovani/{voting_id}/import/potvrdit")
+def voting_import_confirm(
+    voting_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Confirm voting result import from Excel."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+
+    token = request.session.pop("voting_import_token", "")
+    if not token:
+        request.session["flash"] = {"type": "error", "message": "Žádná data k importu."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
+
+    temp_path = os.path.join(_IMPORT_TEMP_DIR, f"{token}.xlsx")
+    if not os.path.exists(temp_path):
+        request.session["flash"] = {"type": "error", "message": "Soubor importu nenalezen."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
+
+    items = db.query(VotingItem).filter(VotingItem.voting_id == voting_id).order_by(VotingItem.number).all()
+
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(temp_path, read_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(min_row=2, values_only=True))  # Skip header
+        wb.close()
+
+        from app.models.owner import Owner, Unit, OwnerUnit
+        from difflib import SequenceMatcher
+
+        imported = 0
+        vote_mapping = {"pro": "PRO", "1": "PRO", "ano": "PRO", "yes": "PRO",
+                        "proti": "PROTI", "0": "PROTI", "ne": "PROTI", "no": "PROTI",
+                        "zdržel": "Zdržel se", "zdržel se": "Zdržel se", "abstain": "Zdržel se"}
+
+        for row in rows:
+            if not row or len(row) < 3:
+                continue
+            owner_val = str(row[0]).strip() if row[0] else ""
+            unit_val = str(row[1]).strip() if row[1] else ""
+
+            # Find unit
+            unit = None
+            if unit_val:
+                try:
+                    unit = db.query(Unit).filter(Unit.unit_number == int(unit_val)).first()
+                except (ValueError, TypeError):
+                    pass
+
+            if not unit:
+                continue
+
+            # Find ballot for this unit
+            ballot = db.query(Ballot).filter(
+                Ballot.voting_id == voting_id,
+                Ballot.unit_id == unit.id,
+            ).first()
+
+            if not ballot:
+                continue
+
+            # Process votes (columns 2+ map to voting items)
+            for i, item in enumerate(items):
+                col_idx = i + 2
+                if col_idx < len(row) and row[col_idx] is not None:
+                    vote_raw = str(row[col_idx]).strip().lower()
+                    vote_val = vote_mapping.get(vote_raw, "")
+                    if vote_val:
+                        # Check if vote already exists
+                        existing = db.query(BallotVote).filter(
+                            BallotVote.ballot_id == ballot.id,
+                            BallotVote.voting_item_id == item.id,
+                        ).first()
+                        if existing:
+                            existing.vote = vote_val
+                        else:
+                            bv = BallotVote(ballot_id=ballot.id, voting_item_id=item.id, vote=vote_val)
+                            db.add(bv)
+
+            ballot.status = "zpracován"
+            imported += 1
+
+        db.commit()
+        request.session["flash"] = {"type": "success", "message": f"Importováno {imported} hlasovacích lístků."}
+
+    except Exception as e:
+        db.rollback()
+        request.session["flash"] = {"type": "error", "message": f"Chyba importu: {e}"}
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+    return RedirectResponse(url=f"/hlasovani/{voting_id}", status_code=303)
 
 
 @router.post("/hlasovani/{voting_id}/smazat")
