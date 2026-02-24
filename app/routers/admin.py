@@ -629,6 +629,51 @@ def backup_restore(
     return RedirectResponse(url="/sprava/zalohy", status_code=303)
 
 
+@router.post("/sprava/zaloha/obnovit-soubor")
+async def backup_restore_db_file(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Restore from uploaded .db file (admin only)."""
+    user, err = _require_admin(request, db)
+    if err:
+        return err
+
+    filename = file.filename or ""
+    if not filename.endswith(".db"):
+        request.session["flash"] = {"type": "error", "message": "Nahrajte soubor .db (SQLite databázi)."}
+        return RedirectResponse(url="/sprava/zalohy", status_code=303)
+
+    content = await file.read()
+
+    # Validate it's a real SQLite file (magic bytes: "SQLite format 3\000")
+    if not content.startswith(b"SQLite format 3\x00"):
+        request.session["flash"] = {"type": "error", "message": "Neplatný soubor — není SQLite databáze."}
+        return RedirectResponse(url="/sprava/zalohy", status_code=303)
+
+    try:
+        # Create safety backup first
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safety_path = os.path.join(_BACKUP_DIR, f"pre_restore_{timestamp}.zip")
+        with zipfile.ZipFile(safety_path, "w") as safety:
+            db_path = settings.DATABASE_PATH
+            if os.path.exists(db_path):
+                safety.write(db_path, "svj.db")
+
+        # Replace DB file
+        db_path = settings.DATABASE_PATH
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        with open(db_path, "wb") as f:
+            f.write(content)
+
+        request.session["flash"] = {"type": "success", "message": "Obnova z .db souboru dokončena. Restartujte aplikaci."}
+    except Exception as e:
+        request.session["flash"] = {"type": "error", "message": f"Chyba obnovy: {e}"}
+
+    return RedirectResponse(url="/sprava/zalohy", status_code=303)
+
+
 # --- Data Deletion (Danger Zone) ---
 
 

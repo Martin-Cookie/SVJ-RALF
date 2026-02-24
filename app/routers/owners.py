@@ -25,6 +25,8 @@ def owners_list(
     request: Request,
     search: str = "",
     typ: str = "",
+    vlastnictvi: str = "",
+    kontakt: str = "",
     sort: str = "name",
     db: Session = Depends(get_db),
 ):
@@ -51,6 +53,25 @@ def owners_list(
     if typ:
         query = query.filter(Owner.owner_type == typ)
 
+    # Ownership type filter (SJM, VL, SJVL, etc.)
+    if vlastnictvi:
+        query = query.filter(
+            Owner.id.in_(
+                db.query(OwnerUnit.owner_id)
+                .filter(OwnerUnit.ownership_type == vlastnictvi, OwnerUnit.valid_to.is_(None))
+            )
+        )
+
+    # Contact filter
+    if kontakt == "s_emailem":
+        query = query.filter(Owner.email != "", Owner.email.isnot(None))
+    elif kontakt == "bez_emailu":
+        query = query.filter((Owner.email == "") | (Owner.email.is_(None)))
+    elif kontakt == "s_telefonem":
+        query = query.filter(Owner.phone != "", Owner.phone.isnot(None))
+    elif kontakt == "bez_telefonu":
+        query = query.filter((Owner.phone == "") | (Owner.phone.is_(None)))
+
     # Sorting
     sort_map = {
         "name": Owner.name_normalized.asc(),
@@ -64,17 +85,34 @@ def owners_list(
     owners = query.all()
 
     # Count by type for filter bubbles
-    total = db.query(Owner).filter(Owner.is_active == True).count()  # noqa: E712
-    fyzicka_count = (
-        db.query(Owner)
-        .filter(Owner.is_active == True, Owner.owner_type == "physical")  # noqa: E712
-        .count()
-    )
-    pravnicka_count = (
-        db.query(Owner)
-        .filter(Owner.is_active == True, Owner.owner_type == "legal")  # noqa: E712
-        .count()
-    )
+    active_q = db.query(Owner).filter(Owner.is_active == True)  # noqa: E712
+    total = active_q.count()
+    fyzicka_count = active_q.filter(Owner.owner_type == "physical").count()
+    pravnicka_count = active_q.filter(Owner.owner_type == "legal").count()
+
+    # Contact counts
+    s_emailem_count = db.query(Owner).filter(
+        Owner.is_active == True, Owner.email != "", Owner.email.isnot(None)  # noqa: E712
+    ).count()
+    bez_emailu_count = total - s_emailem_count
+    s_telefonem_count = db.query(Owner).filter(
+        Owner.is_active == True, Owner.phone != "", Owner.phone.isnot(None)  # noqa: E712
+    ).count()
+    bez_telefonu_count = total - s_telefonem_count
+
+    # Build current filter URL for back_url chain
+    filter_params = []
+    if search:
+        filter_params.append(f"search={search}")
+    if typ:
+        filter_params.append(f"typ={typ}")
+    if vlastnictvi:
+        filter_params.append(f"vlastnictvi={vlastnictvi}")
+    if kontakt:
+        filter_params.append(f"kontakt={kontakt}")
+    if sort != "name":
+        filter_params.append(f"sort={sort}")
+    current_url = "/vlastnici" + ("?" + "&".join(filter_params) if filter_params else "")
 
     return request.app.state.templates.TemplateResponse(
         request,
@@ -84,10 +122,17 @@ def owners_list(
             "owners": owners,
             "search": search,
             "typ": typ,
+            "vlastnictvi": vlastnictvi,
+            "kontakt": kontakt,
             "sort": sort,
             "total": total,
             "fyzicka_count": fyzicka_count,
             "pravnicka_count": pravnicka_count,
+            "s_emailem_count": s_emailem_count,
+            "bez_emailu_count": bez_emailu_count,
+            "s_telefonem_count": s_telefonem_count,
+            "bez_telefonu_count": bez_telefonu_count,
+            "current_url": current_url,
         },
     )
 
@@ -265,7 +310,7 @@ def import_delete(log_id: int, request: Request, db: Session = Depends(get_db)):
 
 @router.get("/vlastnici/{owner_id}", response_class=HTMLResponse)
 def owner_detail(
-    owner_id: int, request: Request, db: Session = Depends(get_db)
+    owner_id: int, request: Request, back_url: str = "", db: Session = Depends(get_db)
 ):
     """Show owner detail page."""
     user = get_current_user(request, db)
@@ -294,6 +339,10 @@ def owner_detail(
     # Available units for linking
     available_units = db.query(Unit).order_by(Unit.unit_number).all()
 
+    # Sanitize back_url: must start with / and not contain protocol
+    if back_url and (not back_url.startswith("/") or "://" in back_url):
+        back_url = ""
+
     return request.app.state.templates.TemplateResponse(
         request,
         "owners/detail.html",
@@ -303,6 +352,7 @@ def owner_detail(
             "owner_units": owner_units,
             "history_units": history_units,
             "available_units": available_units,
+            "back_url": back_url,
         },
     )
 
