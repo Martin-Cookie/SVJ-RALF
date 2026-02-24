@@ -132,6 +132,23 @@ def test_backup_delete(auth_client):
             assert resp.status_code == 303
 
 
+def test_safe_backup_path_rejects_traversal():
+    """_safe_backup_path should reject path traversal attempts."""
+    from app.routers.admin import _safe_backup_path
+
+    # These should all return None (rejected)
+    assert _safe_backup_path("../etc/passwd.zip") is None
+    assert _safe_backup_path("..%2Fetc.zip") is None
+    assert _safe_backup_path("foo/../bar.zip") is None
+    assert _safe_backup_path("/etc/passwd.zip") is None
+    assert _safe_backup_path("valid_name.txt") is None  # not .zip
+
+    # Valid filenames should return a path
+    result = _safe_backup_path("backup_20240101.zip")
+    assert result is not None
+    assert result.endswith("backup_20240101.zip")
+
+
 def test_backup_restore_requires_admin(editor_client):
     """POST /sprava/zaloha/obnovit should require admin."""
     import io

@@ -28,6 +28,27 @@ os.makedirs(_BACKUP_DIR, exist_ok=True)
 
 router = APIRouter()
 
+_BACKUP_DIR_REAL = os.path.realpath(_BACKUP_DIR)
+
+
+def _safe_backup_path(filename: str) -> Optional[str]:
+    """Validate backup filename and return safe absolute path, or None if invalid."""
+    # Only allow simple filenames: alphanumeric, dash, underscore, dot
+    import re
+    if not re.match(r'^[\w\-\.]+\.zip$', filename):
+        return None
+    fpath = os.path.realpath(os.path.join(_BACKUP_DIR, filename))
+    if not fpath.startswith(_BACKUP_DIR_REAL + os.sep) and fpath != _BACKUP_DIR_REAL:
+        return None
+    return fpath
+
+
+def _sanitize_backup_name(name: str) -> str:
+    """Sanitize backup name to safe characters only."""
+    import re
+    safe = re.sub(r'[^a-zA-Z0-9_\-]', '_', name)
+    return safe[:50] if safe else "backup"
+
 
 def _require_admin(request: Request, db: Session):
     """Check that current user is admin. Returns user or raises 303/403."""
@@ -382,7 +403,7 @@ def backup_create(
         return err
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    label = name.replace(" ", "_") if name else "backup"
+    label = _sanitize_backup_name(name) if name else "backup"
     zip_name = f"{label}_{timestamp}.zip"
     zip_path = os.path.join(_BACKUP_DIR, zip_name)
 
@@ -419,8 +440,8 @@ def backup_download(filename: str, request: Request, db: Session = Depends(get_d
     if err:
         return err
 
-    fpath = os.path.join(_BACKUP_DIR, filename)
-    if not os.path.exists(fpath) or not filename.endswith(".zip"):
+    fpath = _safe_backup_path(filename)
+    if not fpath or not os.path.exists(fpath):
         request.session["flash"] = {"type": "error", "message": "Záloha nenalezena."}
         return RedirectResponse(url="/sprava/zalohy", status_code=303)
 
@@ -431,7 +452,7 @@ def backup_download(filename: str, request: Request, db: Session = Depends(get_d
     return StreamingResponse(
         iterfile(),
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f"attachment; filename={os.path.basename(fpath)}"},
     )
 
 
@@ -442,8 +463,8 @@ def backup_delete(filename: str, request: Request, db: Session = Depends(get_db)
     if err:
         return err
 
-    fpath = os.path.join(_BACKUP_DIR, filename)
-    if os.path.exists(fpath) and filename.endswith(".zip"):
+    fpath = _safe_backup_path(filename)
+    if fpath and os.path.exists(fpath):
         os.remove(fpath)
         request.session["flash"] = {"type": "success", "message": f"Záloha '{filename}' smazána."}
     else:
@@ -492,10 +513,14 @@ def backup_restore(
             db_path = settings.DATABASE_PATH
             zf.extract("svj.db", os.path.dirname(db_path))
 
-            # Extract uploads if present
+            # Extract uploads if present (Zip Slip protection)
+            upload_parent = os.path.realpath(os.path.dirname(settings.UPLOAD_DIR))
             for name in zf.namelist():
                 if name.startswith("uploads/"):
-                    zf.extract(name, os.path.dirname(settings.UPLOAD_DIR))
+                    target = os.path.realpath(os.path.join(upload_parent, name))
+                    if not target.startswith(upload_parent + os.sep):
+                        continue  # Skip path traversal attempts
+                    zf.extract(name, upload_parent)
 
         request.session["flash"] = {"type": "success", "message": "Obnova dokončena. Restartujte aplikaci."}
     except Exception as e:
@@ -579,6 +604,17 @@ async def delete_data_execute(request: Request, db: Session = Depends(get_db)):
         request.session["flash"] = {"type": "error", "message": "Vyberte alespoň jednu kategorii."}
         return RedirectResponse(url="/sprava/smazat-data", status_code=303)
 
+    # Create safety backup before mass delete
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safety_path = os.path.join(_BACKUP_DIR, f"pre_delete_{timestamp}.zip")
+        with zipfile.ZipFile(safety_path, "w") as safety:
+            db_path = settings.DATABASE_PATH
+            if os.path.exists(db_path):
+                safety.write(db_path, "svj.db")
+    except Exception:
+        pass  # Best effort safety backup
+
     total = 0
     for cat in categories:
         models = _get_delete_models(cat)
@@ -586,6 +622,15 @@ async def delete_data_execute(request: Request, db: Session = Depends(get_db)):
             count = db.query(model).delete()
             total += count
 
+    # Audit log entry for mass deletion
+    audit = AuditLog(
+        user_id=user.id,
+        action="delete",
+        model_name="MassDelete",
+        field_name=",".join(categories),
+        new_value=f"{total} records deleted",
+    )
+    db.add(audit)
     db.commit()
     request.session["flash"] = {"type": "success", "message": f"Smazáno {total} záznamů."}
     return RedirectResponse(url="/sprava/smazat-data", status_code=303)
@@ -628,19 +673,16 @@ def _get_export_data(db: Session, cat: str):
 
 def _rows_to_xlsx(filename: str, columns: list, rows: list) -> bytes:
     """Convert rows to xlsx bytes."""
-    try:
-        from openpyxl import Workbook
-        wb = Workbook()
-        ws = wb.active
-        ws.title = filename
-        ws.append(columns)
-        for row in rows:
-            ws.append([row.get(c, "") for c in columns])
-        buf = io.BytesIO()
-        wb.save(buf)
-        return buf.getvalue()
-    except ImportError:
-        return _rows_to_csv(columns, rows)
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = filename
+    ws.append(columns)
+    for row in rows:
+        ws.append([row.get(c, "") for c in columns])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
 
 
 def _rows_to_csv(columns: list, rows: list) -> bytes:
@@ -830,6 +872,16 @@ async def bulk_edits_apply(request: Request, db: Session = Depends(get_db)):
             query = query.filter(getattr(Unit, col_name) == old_value)
         updated = query.update({col_name: new_value}, synchronize_session="fetch")
 
+    # Audit log for bulk edit
+    audit = AuditLog(
+        user_id=user.id,
+        action="update",
+        model_name="BulkEdit",
+        field_name=col_name,
+        old_value=old_value,
+        new_value=f"{new_value} ({updated} records)",
+    )
+    db.add(audit)
     db.commit()
 
     label = _BULK_EDIT_FIELDS[field]["label"]

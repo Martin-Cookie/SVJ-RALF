@@ -83,7 +83,8 @@ def test_delete_data_multiple_categories(auth_client, db_engine):
 
     session = SASession(bind=db_engine)
     assert session.query(Owner).count() == 0
-    assert session.query(AuditLog).count() == 0
+    # The manually added AuditLog was deleted; only the mass-delete audit entry remains
+    assert session.query(AuditLog).filter(AuditLog.action == "test").count() == 0
     session.close()
 
 
