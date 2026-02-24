@@ -28,6 +28,13 @@
 - [iter 9] Playwright strict mode: `.first()` pro locátory které matchují víc elementů (např. username v headeru)
 - [iter 9] Interaction testy: regex `/\d+/` v assertions pro hodnoty které závisí na stavu DB (počty vlastníků apod.)
 - [iter 9] pip-audit: 6 known vulns (starlette, python-multipart, pdfminer-six, pillow) — dokumentovat upgrade path v HANDOFF.md
+- [iter 10] Path traversal: VŽDY validovat os.path.realpath() pro user-controlled filenames — regex whitelist + realpath check
+- [iter 10] Zip Slip: NIKDY přímý zf.extract() bez validace target path
+- [iter 10] Multi-value form data v httpx test client: dict s listem `{"key": ["a", "b"]}` místo list of tuples
+- [iter 10] Audit logging: KAŽDÁ destruktivní operace MUSÍ logovat do AuditLog — mass delete, bulk edit
+- [iter 10] Safety backup: automaticky vytvořit zálohu PŘED mass delete operací
+- [iter 10] AuditLog model: pole je `timestamp` NE `created_at`
+- [iter 11] Sortable testy: table headers se nerendrují v empty state — testy potřebují data v DB
 
 ## Patterns (co funguje dobře v tomto projektu)
 - [iter 1] FastAPI Form() params místo asyncio.new_event_loop() hacku pro form data

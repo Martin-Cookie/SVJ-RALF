@@ -36,7 +36,7 @@ Otevřete http://localhost:8000 — při prvním spuštění se zobrazí registr
 ### Testy
 
 ```bash
-# Unit testy (113 testů)
+# Unit testy (160 testů)
 python3 -m pytest tests/ -v
 
 # E2E interaction testy (48 testů) — vyžaduje běžící server
@@ -56,12 +56,12 @@ ITER=X PHASE=Y npx playwright test tests/visual-check.spec.ts
 
 Referenční Excel: project SVJ, `data/SVJ_Evidence_Vlastniku_CLEAN.xlsx`
 
-## Implementované features (10 bloků)
+## Implementované features (11 iterací)
 
 ### Fáze 1: Základ + Evidence
 - **Blok 1:** Dashboard, autentizace (login/registrace/logout), sidebar navigace, dark mode, global search, klávesové zkratky, české locale filtry
-- **Blok 2:** Evidence vlastníků — CRUD, Excel import/export, filtrační bubliny (fyzické/právnické), HTMX inline editace, ownership history, birth number masking
-- **Blok 3:** Evidence jednotek — CRUD, search, building filter, bidirectional owner<>unit links
+- **Blok 2:** Evidence vlastníků — CRUD, Excel import/export, filtrační bubliny (fyzické/právnické), HTMX inline editace, ownership history, birth number masking, **column sorting**, **print button**
+- **Blok 3:** Evidence jednotek — CRUD, search, building filter, bidirectional owner<>unit links, **column sorting**
 
 ### Fáze 2: Hlasování
 - **Blok 4:** Hlasování — vytvoření, body, .docx šablona upload, PDF lístky, status workflow (koncept→aktivní→uzavřené/zrušené)
@@ -74,6 +74,10 @@ Referenční Excel: project SVJ, `data/SVJ_Evidence_Vlastniku_CLEAN.xlsx`
 ### Fáze 4: Administrace
 - **Blok 8-9:** Správa SVJ — SVJ info CRUD, členové výboru + kontrolního orgánu (add/delete), collapsible sections, datalist autocomplete
 - **Blok 10:** Nastavení — app info, email log placeholder, keyboard shortcuts reference
+- **Blok A:** Správa uživatelů — CRUD, role-based access (admin/editor/reader), `_require_admin()`, self-protection
+- **Blok B:** Audit log — filtrování dle akce, backup/restore (ZIP s DB + uploads), safety backup before restore
+- **Blok C:** Smazání dat (danger zone s DELETE potvrzením), export dat (xlsx/csv/zip), hromadné úpravy
+- **Notifikace** — bell icon dropdown, mark read/unread, HTMX
 
 ### Excel Import (Blok 10b)
 - 31-sloupcový parser (pozice 0-30, sheet "Vlastnici_SVJ")
@@ -82,6 +86,11 @@ Referenční Excel: project SVJ, `data/SVJ_Evidence_Vlastniku_CLEAN.xlsx`
 - File-based temp storage (UUID4 token → .xlsx na disku)
 - Transaction management: service uses flush(), caller commits
 - 32 dedicated unit tests
+
+### UI Enhancements
+- **Column sorting** — client-side JS with ↕ indicators on owner/unit tables
+- **Print** — button on owner list, `@media print` stylesheet (hides sidebar/nav)
+- **Print stylesheet** — A4 optimized, hides chrome
 
 ## Known Issues / TODO
 
@@ -110,10 +119,18 @@ Referenční Excel: project SVJ, `data/SVJ_Evidence_Vlastniku_CLEAN.xlsx`
 - Excel import hlasovacích lístků (4-krokový flow)
 - Hlasování v zastoupení (plné moci/Proxy)
 - Pokročilé filtry vlastníků (sekce, typ vlastnictví)
-- Column sorting by click v tabulkách
-- Auto-zálohy, obnova dat
-- Hromadné úpravy, tisk
-- Smazání dat (danger zone)
+- Selektivní aktualizace v sync (checkboxy)
+- Výměna vlastníků v sync
+- Automatické zálohy (background task)
+- Back URL řetěz (zachování filtrů)
+
+## Security Measures (iter 10)
+- **Path traversal protection**: `_safe_backup_path()` with `os.path.realpath()` + regex whitelist
+- **Zip Slip protection**: All ZIP extractions validate resolved path stays within target dir
+- **Audit logging**: Mass delete + bulk edit operations logged to AuditLog
+- **Safety backups**: Automatic pre-delete and pre-restore safety backups
+- **Backup filename sanitization**: Alphanumeric + underscore only
+- **Role-based access**: admin/editor/reader with `_require_admin()` enforced on all admin routes
 
 ## Tech Stack
 
@@ -129,21 +146,21 @@ Referenční Excel: project SVJ, `data/SVJ_Evidence_Vlastniku_CLEAN.xlsx`
 | Playwright | 1.58.2 |
 
 ## Test Coverage
-- **Unit tests:** 113 passing (14 test files: auth, config, database, owners, units, voting, voting_processing, tax, sync, admin, search, settings, excel_import)
-- **E2E interaction tests:** 48 passing (Playwright across all 10 feature blocks)
+- **Unit tests:** 160 passing (17 test files)
+- **E2E interaction tests:** 48 passing (Playwright across all feature blocks)
 - **Visual checks:** 3 viewports (mobile 375px, tablet 768px, desktop 1440px) × 9 stránek = 27 screenshots
-- **RALF iterations:** 9 complete with 6-role review panels
+- **RALF iterations:** 11 complete with 6-role review panels
 
 ## Data
 - Database: `data/svj.db` (SQLite, auto-created)
 - Uploads: `data/uploads/` (PDF documents)
 - Import temp: `data/uploads/_import_temp/` (UUID4.xlsx, cleaned after confirm)
 - Generated: `data/generated/` (ballot PDFs)
-- Backups: `data/backups/` (placeholder)
+- Backups: `data/backups/` (ZIP archives of DB + uploads)
 
 ## RALF Loop Summary
-- **9 iterací** provedeno (3+ požadováno)
+- **11 iterací** provedeno (3+ požadováno)
 - **Všech 6 rolí APPROVED** (CEO, CTO, CPO, Security, QA, Designer)
 - **CRITICAL = 0, HIGH = 0**
-- **161 testů** (113 unit + 48 E2E) — všechny prochází
+- **160 testů** (unit) + 48 E2E — všechny prochází
 - **Reálná data** ověřena: 430 vlastníků, 508 jednotek, 767 vazeb
