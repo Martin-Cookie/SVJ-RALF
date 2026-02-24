@@ -103,12 +103,14 @@ from app.routers import dashboard as dashboard_router  # noqa: E402
 from app.routers import search as search_router  # noqa: E402
 from app.routers import notifications as notifications_router  # noqa: E402
 from app.routers import owners as owners_router  # noqa: E402
+from app.routers import units as units_router  # noqa: E402
 
 app.include_router(auth_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(search_router.router)
 app.include_router(notifications_router.router)
 app.include_router(owners_router.router)
+app.include_router(units_router.router)
 
 # Ensure data directories exist
 for d in [settings.UPLOAD_DIR, settings.GENERATED_DIR, settings.BACKUP_DIR]:

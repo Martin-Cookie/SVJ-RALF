@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Jednotka {{ unit.unit_number }} – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center gap-3">
+        <a href="/jednotky" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition" title="Zpět na seznam">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Jednotka {{ unit.unit_number }}</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                {% if unit.building %}Budova {{ unit.building }}{% endif %}
+                {% if unit.section %} · {{ unit.section }}{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Unit info card -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Informace o jednotce</h2>
+            <dl class="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Číslo jednotky</dt>
+                    <dd class="font-medium">{{ unit.unit_number }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Budova</dt>
+                    <dd class="font-medium">{{ unit.building or "–" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Sekce</dt>
+                    <dd class="font-medium">{{ unit.section or "–" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Typ prostoru</dt>
+                    <dd class="font-medium">{{ unit.space_type or "–" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Plocha</dt>
+                    <dd class="font-medium">{{ unit.area | cislo }} m²</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Podíl SČD</dt>
+                    <dd class="font-medium">{{ unit.share_scd | cislo }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Počet místností</dt>
+                    <dd class="font-medium">{{ unit.room_count or "–" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">LV</dt>
+                    <dd class="font-medium">{{ unit.land_registry_number or "–" }}</dd>
+                </div>
+                {% if unit.address %}
+                <div class="col-span-2">
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Adresa</dt>
+                    <dd class="font-medium">{{ unit.address }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <!-- Owners card -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Vlastníci</h2>
+
+            {% if owner_units %}
+            <div class="space-y-2 mb-4">
+                {% for ou in owner_units %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                    <div>
+                        <a href="/vlastnici/{{ ou.owner.id }}" class="font-medium text-sm text-primary-600 dark:text-primary-400 hover:underline">
+                            {{ ou.owner.display_name }}
+                        </a>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ ou.ownership_type }}
+                            {% if ou.ownership_share %} · {{ ou.ownership_share }}{% endif %}
+                        </div>
+                    </div>
+                    <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full
+                        {% if ou.owner.owner_type == 'fyzická' %}bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300
+                        {% else %}bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300{% endif %}">
+                        {{ ou.owner.owner_type }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Žádní přiřazení vlastníci.</p>
+            {% endif %}
+
+            <!-- Ownership history -->
+            {% if history %}
+            <details class="mt-4">
+                <summary class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 transition">
+                    Historie vlastnictví ({{ history | length }})
+                </summary>
+                <div class="space-y-2 mt-2">
+                    {% for ou in history %}
+                    <div class="p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg opacity-60">
+                        <a href="/vlastnici/{{ ou.owner.id }}" class="font-medium text-sm hover:underline">
+                            {{ ou.owner.display_name }}
+                        </a>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ ou.ownership_type }}
+                            {% if ou.valid_from %} · od {{ ou.valid_from | datum }}{% endif %}
+                            {% if ou.valid_to %} · do {{ ou.valid_to | datum }}{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
