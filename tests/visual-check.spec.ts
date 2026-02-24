@@ -74,6 +74,14 @@ test.describe('Visual Check', () => {
         fullPage: true,
       });
 
+      // Sync page
+      await page.goto('/synchronizace');
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({
+        path: `screenshots/iter-${ITER}-${PHASE}-${vp.name}-sync.png`,
+        fullPage: true,
+      });
+
       // Login page
       await page.goto('/logout');
       await page.waitForLoadState('networkidle');

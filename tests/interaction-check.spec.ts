@@ -361,3 +361,27 @@ test.describe('Interaction Check – Blok 6 (Daně/Rozúčtování)', () => {
     await expect(page.getByRole('heading', { name: 'Párování dokumentů' })).toBeVisible();
   });
 });
+
+test.describe('Interaction Check – Blok 7 (Synchronizace)', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginOrRegister(page);
+  });
+
+  test('sync page loads with empty state', async ({ page }) => {
+    await page.goto('/synchronizace');
+    await expect(page.getByRole('heading', { name: 'Synchronizace' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Žádné kontroly' })).toBeVisible();
+  });
+
+  test('sync sidebar link navigates correctly', async ({ page }) => {
+    await page.click('#sidebar a[href="/synchronizace"]');
+    await expect(page).toHaveURL(/\/synchronizace/);
+  });
+
+  test('sync upload form is accessible', async ({ page }) => {
+    await page.goto('/synchronizace/nova');
+    await expect(page.getByRole('heading', { name: 'Nová kontrola vlastníků' })).toBeVisible();
+    await expect(page.locator('input[type="file"]')).toBeVisible();
+    await expect(page.getByText('Nahrát a porovnat')).toBeVisible();
+  });
+});
