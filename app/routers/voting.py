@@ -765,7 +765,7 @@ async def voting_import_upload(
     # Parse Excel headers for column mapping
     import openpyxl
     try:
-        wb = openpyxl.load_workbook(temp_path, read_only=True)
+        wb = openpyxl.load_workbook(temp_path, read_only=True, keep_links=False)
         ws = wb.active
         rows = list(ws.iter_rows(min_row=1, values_only=True))
         wb.close()
@@ -812,10 +812,19 @@ async def voting_import_mapping(
     items = db.query(VotingItem).filter(VotingItem.voting_id == voting_id).order_by(VotingItem.number).all()
 
     form = await request.form()
-    owner_col = int(form.get("owner_col", 0))
-    unit_col = int(form.get("unit_col", 1))
-    start_row = int(form.get("start_row", 2))
+    try:
+        owner_col = int(form.get("owner_col", 0))
+        unit_col = int(form.get("unit_col", 1))
+        start_row = int(form.get("start_row", 2))
+    except (ValueError, TypeError):
+        request.session["flash"] = {"type": "error", "message": "Neplatná hodnota mapování."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
     import_mode = str(form.get("import_mode", "doplnit"))
+
+    # Bounds validation
+    if owner_col < 0 or unit_col < 0 or start_row < 1:
+        request.session["flash"] = {"type": "error", "message": "Neplatná hodnota mapování."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
 
     token = request.session.get("voting_import_token", "")
     if not token:
@@ -828,7 +837,7 @@ async def voting_import_mapping(
         return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
 
     import openpyxl
-    wb = openpyxl.load_workbook(temp_path, read_only=True)
+    wb = openpyxl.load_workbook(temp_path, read_only=True, keep_links=False)
     ws = wb.active
     all_rows = list(ws.iter_rows(min_row=1, values_only=True))
     wb.close()
@@ -924,7 +933,7 @@ def voting_import_confirm(
 
     try:
         import openpyxl
-        wb = openpyxl.load_workbook(temp_path, read_only=True)
+        wb = openpyxl.load_workbook(temp_path, read_only=True, keep_links=False)
         ws = wb.active
         all_rows = list(ws.iter_rows(min_row=1, values_only=True))
         wb.close()

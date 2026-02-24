@@ -112,7 +112,7 @@
                             {% for row in sample_rows %}
                             <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/30">
                                 {% for cell in row %}
-                                <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ cell or "–" }}</td>
+                                <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{% if cell is not none and cell != '' %}{{ cell }}{% else %}–{% endif %}</td>
                                 {% endfor %}
                             </tr>
                             {% endfor %}
@@ -166,7 +166,7 @@
                     {% for row in preview.rows %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/30">
                         {% for cell in row %}
-                        <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ cell or "–" }}</td>
+                        <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{% if cell is not none and cell != '' %}{{ cell }}{% else %}–{% endif %}</td>
                         {% endfor %}
                     </tr>
                     {% endfor %}

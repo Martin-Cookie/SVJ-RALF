@@ -144,21 +144,48 @@ def test_exchange_preview_shows_date_picker(auth_client, db_engine):
 
 
 def test_bulk_exchange_creates_audit_logs(auth_client, db_engine):
-    """Bulk exchange confirm creates AuditLog entries."""
-    data = _create_sync_with_different_owners(db_engine)
+    """Bulk exchange confirm creates AuditLog entries for exact matches."""
+    # Create data with exact-match names (score >= 0.9)
+    from sqlalchemy.orm import Session as SASession
+    from app.models.sync import SyncSession, SyncRecord
+    from app.models.owner import Owner, Unit, OwnerUnit
+
+    session = SASession(bind=db_engine)
+    old_owner = Owner(first_name="Pavel", last_name="Černý", owner_type="physical", name_normalized="černý pavel")
+    new_owner = Owner(first_name="Karel", last_name="Bílý", owner_type="physical", name_normalized="bílý karel")
+    unit = Unit(unit_number=500, space_type="Byt")
+    session.add_all([old_owner, new_owner, unit])
+    session.flush()
+
+    ou = OwnerUnit(owner_id=old_owner.id, unit_id=unit.id)
+    session.add(ou)
+
+    ss = SyncSession(name="Bulk Audit Test", source_format="interní")
+    session.add(ss)
+    session.flush()
+
+    # csv_owner_name matches new_owner.display_name exactly ("Bílý Karel")
+    rec = SyncRecord(
+        session_id=ss.id, unit_id=unit.id,
+        status="rozdílní",
+        db_owner_name="Černý Pavel",
+        csv_owner_name="Bílý Karel",  # Exact match to new_owner.display_name
+    )
+    session.add(rec)
+    session.commit()
+    session_id = ss.id
+    session.close()
+
     auth_client.post(
-        f"/synchronizace/{data['session_id']}/vymena-hromadna/potvrdit",
+        f"/synchronizace/{session_id}/vymena-hromadna/potvrdit",
         follow_redirects=False,
     )
 
-    from sqlalchemy.orm import Session as SASession
     from app.models.common import AuditLog
     session = SASession(bind=db_engine)
     logs = session.query(AuditLog).filter(
         AuditLog.action == "exchange",
         AuditLog.model_name == "OwnerUnit",
     ).all()
-    # May or may not have created log depending on fuzzy match score
-    # (threshold 0.9, "Vlastník Nový" vs display_name)
-    # At minimum, the route should not error
+    assert len(logs) >= 1, "Bulk exchange should create AuditLog for exact matches"
     session.close()
