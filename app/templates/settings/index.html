@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Nastavení – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <h1 class="text-xl font-bold text-gray-900 dark:text-white">Nastavení</h1>
+
+    <!-- Application info -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+        <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Informace o aplikaci</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div>
+                <span class="text-gray-500 dark:text-gray-400">Verze:</span>
+                <span class="text-gray-900 dark:text-white font-medium ml-1">2.0</span>
+            </div>
+            <div>
+                <span class="text-gray-500 dark:text-gray-400">Framework:</span>
+                <span class="text-gray-900 dark:text-white font-medium ml-1">FastAPI + SQLAlchemy</span>
+            </div>
+            <div>
+                <span class="text-gray-500 dark:text-gray-400">Databáze:</span>
+                <span class="text-gray-900 dark:text-white font-medium ml-1">SQLite</span>
+            </div>
+            <div>
+                <span class="text-gray-500 dark:text-gray-400">UI:</span>
+                <span class="text-gray-900 dark:text-white font-medium ml-1">Tailwind CSS + HTMX</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email log placeholder -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+        <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Odeslaný email log</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Zatím nebyly odeslány žádné emaily.</p>
+    </div>
+
+    <!-- Keyboard shortcuts -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+        <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Klávesové zkratky</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+            <div class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Dashboard</span>
+                <kbd class="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-slate-700 rounded">G → D</kbd>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Vlastníci</span>
+                <kbd class="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-slate-700 rounded">G → V</kbd>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Jednotky</span>
+                <kbd class="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-slate-700 rounded">G → J</kbd>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Hlasování</span>
+                <kbd class="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-slate-700 rounded">G → H</kbd>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Hledání</span>
+                <kbd class="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-slate-700 rounded">Ctrl+K</kbd>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Zkratky</span>
+                <kbd class="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-slate-700 rounded">?</kbd>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

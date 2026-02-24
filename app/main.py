@@ -107,6 +107,8 @@ from app.routers import units as units_router  # noqa: E402
 from app.routers import voting as voting_router  # noqa: E402
 from app.routers import tax as tax_router  # noqa: E402
 from app.routers import sync as sync_router  # noqa: E402
+from app.routers import admin as admin_router  # noqa: E402
+from app.routers import settings as settings_router  # noqa: E402
 
 app.include_router(auth_router.router)
 app.include_router(dashboard_router.router)
@@ -117,6 +119,8 @@ app.include_router(units_router.router)
 app.include_router(voting_router.router)
 app.include_router(tax_router.router)
 app.include_router(sync_router.router)
+app.include_router(admin_router.router)
+app.include_router(settings_router.router)
 
 # Ensure data directories exist
 for d in [settings.UPLOAD_DIR, settings.GENERATED_DIR, settings.BACKUP_DIR]:
