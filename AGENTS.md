@@ -35,6 +35,12 @@
 - [iter 10] Safety backup: automaticky vytvořit zálohu PŘED mass delete operací
 - [iter 10] AuditLog model: pole je `timestamp` NE `created_at`
 - [iter 11] Sortable testy: table headers se nerendrují v empty state — testy potřebují data v DB
+- [iter 12] Input validation: VŽDY try/except na float()/int() parsování z Form dat — jinak 500 na bad input
+- [iter 12] Role checks: KAŽDÝ write/delete endpoint MUSÍ mít _require_editor() nebo _require_admin()
+- [iter 14] File upload: VŽDY validovat extension (.xlsx/.xls allowlist) + file size (max 10MB) na serveru
+- [iter 14] Fuzzy bulk operations: threshold >= 0.9 pro automatické akce, 0.75 je příliš nízké
+- [iter 14] Test assertions: VŽDY ověřovat DB stav (query po POST), ne jen status_code redirect
+- [iter 14] Path traversal: os.path.realpath() validace i na server-generated paths (defense in depth)
 
 ## Patterns (co funguje dobře v tomto projektu)
 - [iter 1] FastAPI Form() params místo asyncio.new_event_loop() hacku pro form data
@@ -46,6 +52,9 @@
 - [iter 8] Owner deduplication: group by birth_number/IČ first, pak by normalized name — testovat s reálnými daty!
 - [iter 8] Test fixtures: openpyxl Workbook() → temp file → pytest fixture = spolehlivé testování import service
 - [iter 2] Collapsible sections: `<details><summary>` element pro ownership history
+- [iter 12] HTMX address edit: prefix-based routing (/adresa/{prefix}/...) s validated allowlist ("perm", "corr")
+- [iter 14] Owner exchange: soft-delete via valid_to = date.today(), never physical delete OwnerUnit
+- [iter 14] Vote mapping: lowercase normalize + dict lookup pro flexibilní hodnoty (PRO/1/ANO/YES)
 
 ## Known Issues (problémy které ještě nejsou vyřešené)
 - [RESOLVED iter 7] Sidebar linky na neexistující routes — nyní všechny routes implementované
@@ -54,6 +63,10 @@
 - [DEFERRED → HANDOFF] starlette 0.38.6 CVE — pinned by FastAPI 0.115.0, upgrade FastAPI to fix
 - [DEFERRED → HANDOFF] Pokročilé filtry vlastníků — nice-to-have
 - [RESOLVED iter 8] Import flow test — nyní 32 dedicated unit testů + route integration test
+- [DEFERRED → HANDOFF] Voting import column mapping (PRD 4-step vs implemented 3-step)
+- [DEFERRED → HANDOFF] Exchange date picker (hardcoded date.today())
+- [DEFERRED → HANDOFF] AuditLog for owner exchange operations
+- [DEFERRED → HANDOFF] Backup restore variants (folder/file/local-path — only ZIP implemented)
 - [MINOR] Query.get() deprecation warning v testu — use Session.get()
 - [MINOR] OwnerUnit.share vždy 1.0 — ownership fraction neextrahována z Excelu
 - [MINOR] Loading indicator chybí při importu (770 rows trvá pár sekund)
