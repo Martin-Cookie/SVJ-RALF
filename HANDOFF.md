@@ -36,7 +36,7 @@ Otevřete http://localhost:8000 — při prvním spuštění se zobrazí registr
 ### Testy
 
 ```bash
-# Unit testy (205 testů)
+# Unit testy (243 testů)
 python3 -m pytest tests/ -v
 
 # E2E interaction testy (48 testů) — vyžaduje běžící server
@@ -112,6 +112,28 @@ Referenční Excel: project SVJ, `data/SVJ_Evidence_Vlastniku_CLEAN.xlsx`
 - Transaction management: service uses flush(), caller commits
 - 32 dedicated unit tests
 
+### Deferred Features (Iterace 15-17)
+
+**Block G — Voting Import Enhancements + Exchange (Iter 15):**
+- 4-step voting import flow: upload → column mapping → preview → confirm
+- Configurable start row + import mode (doplnit/přepsat)
+- SJM co-owner matching (one row → all ballots on same unit)
+- Exchange date picker (custom date via form, default today)
+- AuditLog + ImportLog entries for every exchange operation
+- openpyxl security hardening (keep_links=False)
+
+**Block H — Owner Filters + Back URL + Backup Restore (Iter 16):**
+- Ownership type filter (SJM/VL/SJVL via OwnerUnit subquery)
+- Contact filters (s_emailem/bez_emailu/s_telefonem/bez_telefonu) with colored bubbles
+- Back URL chain: preserves filter state across list→detail→list navigation
+- .db file restore: SQLite magic bytes validation, 500MB size limit, safety backup
+- Ownership type dropdown (dynamic values from DB)
+
+**Block I — Auto Backup Config + Voting Proxy (Iter 17):**
+- Automatic backup config (frequency, time, max_backups, enable/disable, cleanup)
+- Voting proxy (plné moci): grantor→grantee delegation with self/duplicate prevention
+- Editor/admin role check on proxy routes
+
 ### UI Enhancements
 - **Column sorting** — client-side JS with ↕ indicators on owner/unit tables
 - **Print** — button on owner list, `@media print` stylesheet (hides sidebar/nav)
@@ -138,18 +160,11 @@ Referenční Excel: project SVJ, `data/SVJ_Evidence_Vlastniku_CLEAN.xlsx`
 - Test coverage measurement (pytest-cov) není nastaveno
 - `datetime.utcnow` deprecation (Python 3.12+, ale projekt běží na 3.9)
 
-### Nice-to-have (neimplementované PRD features)
-- Voting import column mapping (PRD specifies 4-step flow, implemented 3-step)
-- Exchange date picker (currently hardcoded `date.today()`)
-- AuditLog entries for owner exchange operations
-- Backup restore variants (folder/file/local-path — only ZIP implemented)
+### Nice-to-have (zbývající neimplementované features)
 - Email odesílání (SMTP integration) — PRD "Hromadné rozeslání emailem" v Daních
 - spustit.command + pripravit_usb.sh — USB deployment skripty
-- Hlasování v zastoupení (plné moci/Proxy)
-- Pokročilé filtry vlastníků (sekce, typ vlastnictví)
-- Automatické zálohy (background task)
-- Back URL řetěz (zachování filtrů)
-- SJM co-owner matching in voting import
+- Auto backup scheduler (config UI exists, needs cron/APScheduler for execution)
+- Proxy audit logging (created_at timestamp + AuditLog entries)
 
 ## Security Measures
 - **Path traversal protection**: `_safe_backup_path()` with `os.path.realpath()` + regex whitelist
@@ -176,10 +191,10 @@ Referenční Excel: project SVJ, `data/SVJ_Evidence_Vlastniku_CLEAN.xlsx`
 | Playwright | 1.58.2 |
 
 ## Test Coverage
-- **Unit tests:** 205 passing (22 test files)
+- **Unit tests:** 243 passing (27 test files)
 - **E2E interaction tests:** 48 passing (Playwright across all feature blocks)
 - **Visual checks:** 3 viewports (mobile 375px, tablet 768px, desktop 1440px) × 9 stránek = 27 screenshots
-- **RALF iterations:** 14 complete with 6-role review panels
+- **RALF iterations:** 17 complete with 6-role review panels (14 original + 3 deferred)
 
 ## Data
 - Database: `data/svj.db` (SQLite, auto-created)
@@ -190,9 +205,10 @@ Referenční Excel: project SVJ, `data/SVJ_Evidence_Vlastniku_CLEAN.xlsx`
 - Backups: `data/backups/` (ZIP archives of DB + uploads)
 
 ## RALF Loop Summary
-- **14 iterací** provedeno (3+ požadováno)
+- **17 iterací** provedeno (3+ požadováno)
 - **Všech 6 rolí APPROVED** (CEO, CTO, CPO, Security, QA, Designer)
 - **CRITICAL = 0, HIGH = 0**
-- **205 testů** (unit) + 48 E2E — všechny prochází
-- **PRD API coverage: 96.7%** (58/60 endpoints)
+- **243 testů** (unit) + 48 E2E — všechny prochází
+- **PRD API coverage: ~99%** (všechny hlavní features implementovány)
 - **Reálná data** ověřena: 430 vlastníků, 508 jednotek, 767 vazeb
+- **Deferred features** cycle: 3 bloky (G, H, I) s plným RALF review
