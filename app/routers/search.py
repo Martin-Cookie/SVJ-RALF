@@ -62,6 +62,7 @@ def search(request: Request, q: str = "", db: Session = Depends(get_db)):
     total = sum(len(v) for v in results.values())
 
     return request.app.state.templates.TemplateResponse(
+        request,
         "search.html",
-        {"request": request, "user": user, "q": q, "results": results, "total": total},
+        {"user": user, "q": q, "results": results, "total": total},
     )

@@ -25,8 +25,9 @@ def notifications_list(request: Request, db: Session = Depends(get_db)):
         .all()
     )
     return request.app.state.templates.TemplateResponse(
+        request,
         "notifications.html",
-        {"request": request, "user": user, "notifications": notifs},
+        {"user": user, "notifications": notifs},
     )
 
 
@@ -45,8 +46,9 @@ def unread_dropdown(request: Request, db: Session = Depends(get_db)):
         .all()
     )
     return request.app.state.templates.TemplateResponse(
+        request,
         "partials/notifications_dropdown.html",
-        {"request": request, "notifications": notifs},
+        {"notifications": notifs},
     )
 
 

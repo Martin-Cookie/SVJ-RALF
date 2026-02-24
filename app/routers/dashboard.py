@@ -30,9 +30,9 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     ).order_by(Voting.created_at.desc()).limit(5).all()
 
     return request.app.state.templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
-            "request": request,
             "user": user,
             "owner_count": owner_count,
             "unit_count": unit_count,

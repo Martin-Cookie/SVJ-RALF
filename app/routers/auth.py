@@ -25,7 +25,7 @@ def login_page(request: Request, db: Session = Depends(get_db)):
 
     flash = request.session.pop("flash", None)
     return request.app.state.templates.TemplateResponse(
-        "login.html", {"request": request, "flash": flash}
+        request, "login.html", {"flash": flash}
     )
 
 
@@ -66,7 +66,7 @@ def register_page(request: Request, db: Session = Depends(get_db)):
 
     flash = request.session.pop("flash", None)
     return request.app.state.templates.TemplateResponse(
-        "register.html", {"request": request, "flash": flash}
+        request, "register.html", {"flash": flash}
     )
 
 
