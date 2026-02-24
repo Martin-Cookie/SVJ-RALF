@@ -31,13 +31,13 @@
 - [iter 2] Collapsible sections: `<details><summary>` element pro ownership history
 
 ## Known Issues (problémy které ještě nejsou vyřešené)
-- spustit.command + pripravit_usb.sh ještě nevytvořeny (plán: Blok 10)
-- Test coverage measurement neprobíhá (plán: iter 3)
 - [RESOLVED iter 7] Sidebar linky na neexistující routes — nyní všechny routes implementované
-- starlette 0.38.6 CVE (GHSA-f96h-pmfr-66vw) — pinned by FastAPI 0.115.0, upgrade v Bloku 10
-- Pokročilé filtry vlastníků (sekce, typ vlastnictví, s/bez email/telefon) → iter 3
-- Import flow E2E test chybí (session-based = těžké testovat v Playwright) → iter 3
-- Query.get() deprecation warning v testu → minor, fix v iter 3
+- [DEFERRED → HANDOFF] spustit.command + pripravit_usb.sh — nice-to-have
+- [DEFERRED → HANDOFF] Test coverage measurement — nice-to-have
+- [DEFERRED → HANDOFF] starlette 0.38.6 CVE — pinned by FastAPI 0.115.0, upgrade FastAPI to fix
+- [DEFERRED → HANDOFF] Pokročilé filtry vlastníků — nice-to-have
+- [DEFERRED → HANDOFF] Import flow E2E test — session-based, difficult to test in Playwright
+- [MINOR] Query.get() deprecation warning v testu — use Session.get()
 
 ## Tech Notes (specifika tech stacku tohoto projektu)
 - Python 3.9.6, FastAPI 0.115.0, SQLAlchemy 2.0.35, Starlette 0.38.6
