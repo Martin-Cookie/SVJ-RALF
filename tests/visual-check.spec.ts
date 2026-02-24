@@ -66,6 +66,14 @@ test.describe('Visual Check', () => {
         fullPage: true,
       });
 
+      // Tax page
+      await page.goto('/dane');
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({
+        path: `screenshots/iter-${ITER}-${PHASE}-${vp.name}-tax.png`,
+        fullPage: true,
+      });
+
       // Login page
       await page.goto('/logout');
       await page.waitForLoadState('networkidle');

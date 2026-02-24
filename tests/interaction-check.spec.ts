@@ -310,3 +310,54 @@ test.describe('Interaction Check – Blok 5 (Zpracování hlasování)', () => {
     await expect(page).toHaveURL(new RegExp(`/hlasovani/${votingId}`));
   });
 });
+
+test.describe('Interaction Check – Blok 6 (Daně/Rozúčtování)', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginOrRegister(page);
+  });
+
+  test('tax page loads with empty state', async ({ page }) => {
+    await page.goto('/dane');
+    await expect(page.getByRole('heading', { name: /Daně|Rozúčtování/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Žádná rozúčtování' })).toBeVisible();
+  });
+
+  test('tax sidebar link navigates correctly', async ({ page }) => {
+    await page.click('#sidebar a[href="/dane"]');
+    await expect(page).toHaveURL(/\/dane/);
+  });
+
+  test('create tax session form works', async ({ page }) => {
+    await page.goto('/dane/nova');
+    await expect(page.getByRole('heading', { name: 'Nové rozúčtování' })).toBeVisible();
+
+    await page.fill('input[name="name"]', 'Test rozúčtování E2E');
+    await page.click('button[type="submit"]');
+
+    await page.waitForURL(/\/dane\/\d+/);
+    await expect(page.getByRole('heading', { name: 'Test rozúčtování E2E' })).toBeVisible();
+  });
+
+  test('tax detail shows upload form and matching link', async ({ page }) => {
+    // Create a session first
+    await page.goto('/dane/nova');
+    await page.fill('input[name="name"]', 'Detail test');
+    await page.click('button[type="submit"]');
+    await page.waitForURL(/\/dane\/\d+/);
+
+    // Check upload form and matching link exist
+    await expect(page.locator('input[type="file"]')).toBeVisible();
+    await expect(page.getByText('Párování')).toBeVisible();
+  });
+
+  test('tax matching page accessible', async ({ page }) => {
+    await page.goto('/dane/nova');
+    await page.fill('input[name="name"]', 'Matching test');
+    await page.click('button[type="submit"]');
+    await page.waitForURL(/\/dane\/\d+/);
+
+    // Navigate to matching page
+    await page.click('a:has-text("Párování")');
+    await expect(page.getByRole('heading', { name: 'Párování dokumentů' })).toBeVisible();
+  });
+});
