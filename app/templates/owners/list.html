@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Vlastníci – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <!-- Page header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Vlastníci</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Celkem {{ total }} vlastníků</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="/vlastnici/export" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Export
+            </a>
+        </div>
+    </div>
+
+    <!-- Search + Filter -->
+    <div class="flex flex-col sm:flex-row gap-3">
+        <form method="get" action="/vlastnici" class="flex-1">
+            <div class="relative">
+                <input type="text" name="search" value="{{ search }}" placeholder="Hledat vlastníka..."
+                       class="w-full h-9 pl-9 pr-3 text-sm bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition">
+                <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                {% if typ %}<input type="hidden" name="typ" value="{{ typ }}">{% endif %}
+            </div>
+        </form>
+        <!-- Filter bubbles -->
+        <div class="flex items-center gap-2 flex-wrap">
+            <a href="/vlastnici{% if search %}?search={{ search }}{% endif %}"
+               class="px-3 py-1.5 text-xs font-medium rounded-full transition
+                      {% if not typ %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                      {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+                Všichni ({{ total }})
+            </a>
+            <a href="/vlastnici?typ=fyzická{% if search %}&search={{ search }}{% endif %}"
+               class="px-3 py-1.5 text-xs font-medium rounded-full transition
+                      {% if typ == 'fyzická' %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                      {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+                Fyzické ({{ fyzicka_count }})
+            </a>
+            <a href="/vlastnici?typ=právnická{% if search %}&search={{ search }}{% endif %}"
+               class="px-3 py-1.5 text-xs font-medium rounded-full transition
+                      {% if typ == 'právnická' %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                      {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+                Právnické ({{ pravnicka_count }})
+            </a>
+        </div>
+    </div>
+
+    <!-- Owners table -->
+    {% if owners %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Jméno</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Typ</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell">Email</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell">Telefon</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden lg:table-cell">Jednotky</th>
+                        <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400">Akce</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
+                    {% for owner in owners %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
+                        <td class="px-4 py-2.5">
+                            <a href="/vlastnici/{{ owner.id }}" class="font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                                {{ owner.display_name }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-2.5">
+                            <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full
+                                {% if owner.owner_type == 'fyzická' %}bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300
+                                {% else %}bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300{% endif %}">
+                                {{ owner.owner_type }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden md:table-cell">{{ owner.email or "–" }}</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden md:table-cell">{{ owner.phone or "–" }}</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden lg:table-cell">
+                            {{ owner.owner_units | selectattr('valid_to', 'none') | list | length }}
+                        </td>
+                        <td class="px-4 py-2.5 text-right">
+                            <a href="/vlastnici/{{ owner.id }}" class="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition">
+                                <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <!-- Empty state -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center">
+        <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-1">Žádní vlastníci</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Zatím nebyli přidáni žádní vlastníci. Importujte je z Excelu.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

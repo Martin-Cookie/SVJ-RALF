@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}{{ owner.display_name }} – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Back link + header -->
+    <div class="flex items-center gap-3">
+        <a href="/vlastnici" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition" title="Zpět na seznam">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ owner.display_name }}</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full
+                    {% if owner.owner_type == 'fyzická' %}bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300
+                    {% else %}bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300{% endif %}">
+                    {{ owner.owner_type }}
+                </span>
+                {% if owner.owner_type == 'fyzická' and owner.birth_number %}
+                    · RČ: {{ owner.birth_number }}
+                {% elif owner.owner_type == 'právnická' and owner.ico %}
+                    · IČ: {{ owner.ico }}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Contact info card -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">Kontaktní údaje</h2>
+            </div>
+            <form method="post" action="/vlastnici/{{ owner.id }}/upravit" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Email</label>
+                        <input type="email" name="email" value="{{ owner.email or '' }}"
+                               class="w-full h-8 px-3 text-sm bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Telefon</label>
+                        <input type="tel" name="phone" value="{{ owner.phone or '' }}"
+                               class="w-full h-8 px-3 text-sm bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+                </div>
+
+                <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide pt-2">Trvalé bydliště</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="sm:col-span-2">
+                        <input type="text" name="perm_street" value="{{ owner.perm_street or '' }}" placeholder="Ulice"
+                               class="w-full h-8 px-3 text-sm bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" name="perm_city" value="{{ owner.perm_city or '' }}" placeholder="Město"
+                               class="w-full h-8 px-3 text-sm bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500">
+                        <input type="text" name="perm_zip" value="{{ owner.perm_zip or '' }}" placeholder="PSČ"
+                               class="w-full h-8 px-3 text-sm bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+                </div>
+
+                <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide pt-2">Korespondenční adresa</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="sm:col-span-2">
+                        <input type="text" name="corr_street" value="{{ owner.corr_street or '' }}" placeholder="Ulice"
+                               class="w-full h-8 px-3 text-sm bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" name="corr_city" value="{{ owner.corr_city or '' }}" placeholder="Město"
+                               class="w-full h-8 px-3 text-sm bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500">
+                        <input type="text" name="corr_zip" value="{{ owner.corr_zip or '' }}" placeholder="PSČ"
+                               class="w-full h-8 px-3 text-sm bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                        Uložit změny
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Units card -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Jednotky</h2>
+
+            {% if owner_units %}
+            <div class="space-y-2 mb-4">
+                {% for ou in owner_units %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                    <div>
+                        <span class="font-medium text-sm">Jednotka {{ ou.unit.unit_number }}</span>
+                        {% if ou.unit.building %}
+                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">({{ ou.unit.building }})</span>
+                        {% endif %}
+                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ ou.ownership_type }}
+                            {% if ou.ownership_share %} · {{ ou.ownership_share }}{% endif %}
+                        </div>
+                    </div>
+                    <form method="post" action="/vlastnici/{{ owner.id }}/jednotky/{{ ou.id }}/odebrat" class="inline">
+                        <button type="submit" class="text-xs text-red-500 hover:text-red-700 transition" title="Odebrat">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Žádné přiřazené jednotky.</p>
+            {% endif %}
+
+            <!-- Add unit form -->
+            <form method="post" action="/vlastnici/{{ owner.id }}/jednotky/pridat" class="flex items-end gap-2">
+                <div class="flex-1">
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Přidat jednotku</label>
+                    <select name="unit_id" class="w-full h-8 px-3 text-sm bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500">
+                        {% for unit in available_units %}
+                        <option value="{{ unit.id }}">{{ unit.unit_number }}{% if unit.building %} ({{ unit.building }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="h-8 px-3 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                    Přidat
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
