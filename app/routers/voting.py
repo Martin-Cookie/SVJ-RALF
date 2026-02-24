@@ -1045,9 +1045,9 @@ def voting_proxy_list(
     voting_id: int, request: Request, db: Session = Depends(get_db)
 ):
     """Show proxy management page for a voting."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, redirect = _require_editor_voting(request, db)
+    if redirect:
+        return redirect
 
     voting = db.query(Voting).filter(Voting.id == voting_id).first()
     if voting is None:
@@ -1081,9 +1081,9 @@ def voting_proxy_add(
     db: Session = Depends(get_db),
 ):
     """Add a proxy delegation."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, redirect = _require_editor_voting(request, db)
+    if redirect:
+        return redirect
 
     voting = db.query(Voting).filter(Voting.id == voting_id).first()
     if voting is None:
@@ -1135,9 +1135,9 @@ def voting_proxy_delete(
     db: Session = Depends(get_db),
 ):
     """Delete a proxy delegation."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, redirect = _require_editor_voting(request, db)
+    if redirect:
+        return redirect
 
     from app.models.owner import Proxy
 

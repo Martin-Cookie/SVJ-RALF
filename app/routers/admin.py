@@ -724,6 +724,16 @@ def auto_backup_config_save(
     if frequency not in ("daily", "weekly"):
         frequency = "daily"
 
+    # Validate time format HH:MM
+    import re
+    if not re.match(r'^\d{2}:\d{2}$', time):
+        time = "02:00"
+    else:
+        parts = time.split(":")
+        h, m = int(parts[0]), int(parts[1])
+        if h > 23 or m > 59:
+            time = "02:00"
+
     try:
         max_b = int(max_backups)
         if max_b < 1:

@@ -130,3 +130,34 @@ def test_proxy_requires_login(client, db_engine):
     """Proxy page requires authentication."""
     resp = client.get("/hlasovani/1/plne-moci", follow_redirects=False)
     assert resp.status_code == 303
+
+
+def test_proxy_duplicate_rejected(auth_client, db_engine):
+    """Cannot add two proxies from the same grantor."""
+    data = _create_voting_with_owners(db_engine)
+    # Add first proxy
+    auth_client.post(
+        f"/hlasovani/{data['voting_id']}/plne-moci/pridat",
+        data={"grantor_id": str(data["o1_id"]), "grantee_id": str(data["o2_id"])},
+        follow_redirects=False,
+    )
+    # Try to add duplicate
+    resp = auth_client.post(
+        f"/hlasovani/{data['voting_id']}/plne-moci/pridat",
+        data={"grantor_id": str(data["o1_id"]), "grantee_id": str(data["o2_id"])},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    text = resp.text.lower()
+    assert "delegoval" in text or "již" in text or "chyb" in text
+
+
+def test_proxy_requires_editor_role(reader_client, db_engine):
+    """Proxy management requires editor or admin role."""
+    data = _create_voting_with_owners(db_engine)
+    # Reader should be blocked
+    resp = reader_client.get(
+        f"/hlasovani/{data['voting_id']}/plne-moci",
+        follow_redirects=False,
+    )
+    assert resp.status_code in (303, 403)
