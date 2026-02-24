@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Hlasovací lístky – {{ voting.name }} – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <!-- Page header -->
+    <div class="flex items-center gap-3">
+        <a href="/hlasovani/{{ voting.id }}" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Hlasovací lístky</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ voting.name }} — {{ ballots | length }} lístků</p>
+        </div>
+    </div>
+
+    {% if ballots %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Vlastník</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Jednotka</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Stav</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell">Vytvořeno</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
+                    {% for ballot in ballots %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
+                        <td class="px-4 py-2.5">
+                            <a href="/vlastnici/{{ ballot.owner_id }}" class="text-primary-600 dark:text-primary-400 hover:underline">
+                                {{ ballot.owner.display_name }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400">
+                            {% if ballot.unit %}{{ ballot.unit.unit_number }}{% else %}–{% endif %}
+                        </td>
+                        <td class="px-4 py-2.5">
+                            <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full
+                                {% if ballot.status == 'vygenerován' %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300
+                                {% elif ballot.status == 'odesláno' %}bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300
+                                {% elif ballot.status == 'zpracován' %}bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300
+                                {% else %}bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300{% endif %}">
+                                {{ ballot.status }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400 hidden md:table-cell">{{ ballot.created_at | datum }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Zatím nebyly vygenerovány žádné lístky.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

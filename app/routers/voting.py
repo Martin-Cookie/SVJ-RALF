@@ -1,11 +1,13 @@
 """Voting management routes."""
+import os
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.models.voting import Voting, VotingItem, Ballot, BallotVote
 
@@ -65,15 +67,16 @@ def voting_create_page(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/hlasovani/nova")
-def voting_create(
+async def voting_create(
     request: Request,
     name: str = Form(...),
     quorum: float = Form(50.0),
     start_date: str = Form(""),
     end_date: str = Form(""),
+    template: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
 ):
-    """Create a new voting."""
+    """Create a new voting, optionally with a .docx template."""
     from datetime import date
 
     user = get_current_user(request, db)
@@ -94,6 +97,28 @@ def voting_create(
             pass
 
     db.add(v)
+    db.flush()  # Get the ID before saving template
+
+    # Handle template upload
+    if template and template.filename and template.filename.endswith(".docx"):
+        upload_dir = os.path.join(settings.UPLOAD_DIR, "templates")
+        os.makedirs(upload_dir, exist_ok=True)
+        template_file = os.path.join(upload_dir, f"voting-{v.id}.docx")
+        content = await template.read()
+        with open(template_file, "wb") as f:
+            f.write(content)
+        v.template_path = template_file
+
+        # Parse items from template
+        try:
+            from app.services.word_parser import parse_voting_items
+
+            items = parse_voting_items(template_file)
+            for i, text in enumerate(items, 1):
+                db.add(VotingItem(voting_id=v.id, number=i, text=text))
+        except Exception:
+            pass  # Template parsing is best-effort; items can be added manually
+
     db.commit()
 
     request.session["flash"] = {"type": "success", "message": f"Hlasování '{name}' vytvořeno."}
@@ -258,6 +283,129 @@ def voting_change_status(
         request.session["flash"] = {"type": "error", "message": f"Nelze změnit stav z '{voting.status}' na '{status}'."}
 
     return RedirectResponse(url=f"/hlasovani/{voting_id}", status_code=303)
+
+
+@router.post("/hlasovani/{voting_id}/generovat")
+def voting_generate_ballots(
+    voting_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Generate ballot documents for all owners with units."""
+    from app.models.owner import Owner, OwnerUnit
+
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+    if voting.status != "koncept":
+        request.session["flash"] = {"type": "error", "message": "Lístky lze generovat pouze v konceptu."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}", status_code=303)
+
+    items = (
+        db.query(VotingItem)
+        .filter(VotingItem.voting_id == voting_id)
+        .order_by(VotingItem.number)
+        .all()
+    )
+    if not items:
+        request.session["flash"] = {"type": "error", "message": "Hlasování nemá žádné body."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}", status_code=303)
+
+    # Find owners with active units
+    active_owners = (
+        db.query(Owner)
+        .join(OwnerUnit, Owner.id == OwnerUnit.owner_id)
+        .filter(OwnerUnit.valid_to.is_(None))
+        .distinct()
+        .all()
+    )
+
+    if not active_owners:
+        request.session["flash"] = {"type": "error", "message": "Žádní vlastníci s aktivními jednotkami."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}", status_code=303)
+
+    item_texts = [item.text for item in items]
+    generated = 0
+
+    from app.models.owner import Unit
+    from app.services.pdf_generator import generate_ballot_pdf
+
+    for owner in active_owners:
+        # Get owner's active units
+        owner_units = (
+            db.query(OwnerUnit)
+            .filter(OwnerUnit.owner_id == owner.id, OwnerUnit.valid_to.is_(None))
+            .all()
+        )
+        unit_ids = [ou.unit_id for ou in owner_units]
+        units = db.query(Unit).filter(Unit.id.in_(unit_ids)).all()
+        unit_numbers = ", ".join(str(u.unit_number) for u in units)
+
+        # Generate document
+        output_dir = os.path.join(settings.GENERATED_DIR, f"voting-{voting_id}")
+        output_path = os.path.join(output_dir, f"ballot-{voting_id}-{owner.id}.docx")
+
+        generate_ballot_pdf(
+            template_path=voting.template_path or "",
+            output_path=output_path,
+            voting_name=voting.name,
+            owner_name=owner.display_name,
+            unit_numbers=unit_numbers,
+            items=item_texts,
+        )
+
+        # Create ballot record for first unit
+        ballot = Ballot(
+            voting_id=voting_id,
+            owner_id=owner.id,
+            unit_id=units[0].id if units else None,
+            status="vygenerován",
+            pdf_path=output_path,
+        )
+        db.add(ballot)
+        generated += 1
+
+    voting.status = "aktivní"
+    db.commit()
+
+    request.session["flash"] = {"type": "success", "message": f"Vygenerováno {generated} lístků. Hlasování aktivováno."}
+    return RedirectResponse(url=f"/hlasovani/{voting_id}", status_code=303)
+
+
+@router.get("/hlasovani/{voting_id}/listky", response_class=HTMLResponse)
+def voting_ballots_list(
+    voting_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """List ballots for a voting."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    voting = db.query(Voting).filter(Voting.id == voting_id).first()
+    if voting is None:
+        return HTMLResponse("Hlasování nenalezeno", status_code=404)
+
+    ballots = (
+        db.query(Ballot)
+        .filter(Ballot.voting_id == voting_id)
+        .all()
+    )
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "voting/ballots.html",
+        {
+            "user": user,
+            "voting": voting,
+            "ballots": ballots,
+        },
+    )
 
 
 @router.post("/hlasovani/{voting_id}/smazat")
