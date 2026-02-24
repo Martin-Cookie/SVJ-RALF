@@ -237,12 +237,12 @@ def import_confirm(request: Request, db: Session = Depends(get_db)):
         db.flush()
         created_owners += 1
 
-        unit_number = row.get("unit_number", 0)
-        if unit_number and int(unit_number) > 0:
-            unit = db.query(Unit).filter(Unit.unit_number == int(unit_number)).first()
+        unit_number = str(row.get("unit_number", "")).strip()
+        if unit_number and unit_number != "0":
+            unit = db.query(Unit).filter(Unit.unit_number == unit_number).first()
             if unit is None:
                 unit = Unit(
-                    unit_number=int(unit_number),
+                    unit_number=unit_number,
                     building=row.get("building", ""),
                     section=row.get("section", ""),
                     space_type=row.get("space_type", ""),
@@ -260,7 +260,7 @@ def import_confirm(request: Request, db: Session = Depends(get_db)):
                 owner_id=owner.id,
                 unit_id=unit.id,
                 ownership_type=row.get("ownership_type", "Neuvedeno"),
-                ownership_share=str(row.get("ownership_share", "")),
+                ownership_share=str(row.get("share_scd", "")),
                 voting_weight=float(row.get("voting_weight", 0) or 0),
             )
             db.add(ou)

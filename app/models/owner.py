@@ -48,7 +48,7 @@ class Unit(Base):
     __tablename__ = "units"
 
     id = Column(Integer, primary_key=True, index=True)
-    unit_number = Column(Integer, nullable=False, index=True)
+    unit_number = Column(String, nullable=False, index=True)
     building = Column(String, default="")
     section = Column(String, default="")
     space_type = Column(String, default="")

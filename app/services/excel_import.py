@@ -1,11 +1,11 @@
 """Excel import service for owners."""
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from openpyxl import load_workbook
 
 
 def parse_owners_xlsx(file_bytes) -> Tuple[List[Dict], List[str]]:
-    """Parse an Excel file with owner data.
+    """Parse an Excel file with owner data (31-column SVJ format).
 
     Returns (rows, errors) where rows is a list of dicts
     and errors is a list of validation error messages.
@@ -35,57 +35,74 @@ def parse_owners_xlsx(file_bytes) -> Tuple[List[Dict], List[str]]:
     for cell in next(ws.iter_rows(min_row=1, max_row=1)):
         header_row.append(str(cell.value or "").strip().lower())
 
-    # Column mapping (Czech headers → field names)
-    col_map = {
-        "příjmení": "last_name",
-        "jméno": "first_name",
-        "titul před": "title_before",
-        "titul za": "title_after",
-        "rodné číslo": "birth_number",
-        "rč": "birth_number",
-        "ič": "ico",
-        "ičo": "ico",
-        "typ": "owner_type",
-        "email": "email",
-        "telefon": "phone",
-        "ulice trvalá": "perm_street",
-        "město trvalá": "perm_city",
-        "psč trvalá": "perm_zip",
-        "ulice korespondenční": "corr_street",
-        "město korespondenční": "corr_city",
-        "psč korespondenční": "corr_zip",
-        "číslo jednotky": "unit_number",
-        "budova": "building",
-        "sekce": "section",
-        "typ prostoru": "space_type",
-        "typ vlastnictví": "ownership_type",
-        "podíl": "ownership_share",
-        "hlasovací váha": "voting_weight",
-        "plocha": "area",
-        "podíl sčd": "share_scd",
-        "lv": "land_registry_number",
-        "počet místností": "room_count",
-        "adresa": "address",
-    }
+    # Column mapping: longer patterns first to avoid false matches
+    # (e.g., "podíl na sčd" must match before "podíl")
+    # Each entry: (pattern_to_find_in_header, field_name)
+    col_map_ordered = [
+        # Unit fields
+        ("číslo jednotky", "unit_number"),
+        ("číslo prostoru", "building"),
+        ("podíl na sčd", "share_scd"),
+        ("podlahová plocha", "area"),
+        ("počet místností", "room_count"),
+        ("druh prostoru", "space_type"),
+        ("sekce", "section"),
+        ("číslo orientační", "orientation_number"),
+        ("adresa jednotky", "address"),
+        ("lv", "land_registry_number"),
+        # Ownership
+        ("typ vlastnictví", "ownership_type"),
+        # Owner fields
+        ("jméno", "first_name"),
+        ("příjmení", "last_name"),
+        ("titul", "title_before"),
+        ("rodné číslo", "birth_number"),
+        # Permanent address
+        ("trvalá adresa – ulice", "perm_street"),
+        ("trvalá adresa – část obce", "perm_district"),
+        ("trvalá adresa – město", "perm_city"),
+        ("trvalá adresa – psč", "perm_zip"),
+        ("trvalá adresa – stát", "perm_country"),
+        # Correspondence address
+        ("koresp. adresa – ulice", "corr_street"),
+        ("koresp. adresa – část obce", "corr_district"),
+        ("koresp. adresa – město", "corr_city"),
+        ("koresp. adresa – psč", "corr_zip"),
+        ("koresp. adresa – stát", "corr_country"),
+        # Contact
+        ("telefon gsm", "phone"),
+        ("telefon pevný", "phone_landline"),
+        ("email", "email"),
+        # Metadata
+        ("vlastník od", "owner_since"),
+        ("poznámka", "note"),
+    ]
 
     # Map actual column indices
     field_indices = {}  # type: Dict[str, int]
-    for idx, header in enumerate(header_row):
-        for czech, field in col_map.items():
-            if czech in header:
+    used_cols = set()  # track which columns are already matched
+    for pattern, field in col_map_ordered:
+        for idx, header in enumerate(header_row):
+            if idx not in used_cols and pattern in header:
                 field_indices[field] = idx
+                used_cols.add(idx)
+                break
+
+    # Handle dual email columns: prefer "email (evidence" over "email (kontakty)"
+    # If we have two email columns, pick the first one (Evidence)
+    email_cols = []
+    for idx, header in enumerate(header_row):
+        if "email" in header:
+            email_cols.append((idx, header))
+    if len(email_cols) >= 2:
+        # Use Evidence email as primary, Kontakty as secondary
+        for idx, header in email_cols:
+            if "evidence" in header:
+                field_indices["email"] = idx
                 break
 
     if "last_name" not in field_indices and "first_name" not in field_indices:
-        # Fallback: assume columns in order
-        default_order = ["last_name", "first_name", "title_before", "title_after",
-                         "birth_number", "ico", "owner_type", "email", "phone",
-                         "perm_street", "perm_city", "perm_zip",
-                         "corr_street", "corr_city", "corr_zip",
-                         "unit_number", "building"]
-        for idx, field in enumerate(default_order):
-            if idx < len(header_row):
-                field_indices[field] = idx
+        return [], ["Nelze identifikovat sloupce – chybí 'Jméno' a 'Příjmení'."]
 
     # Parse data rows
     for row_idx, row in enumerate(ws.iter_rows(min_row=2), start=2):
@@ -108,15 +125,21 @@ def parse_owners_xlsx(file_bytes) -> Tuple[List[Dict], List[str]]:
             errors.append(f"Řádek {row_idx}: chybí jméno nebo příjmení")
             continue
 
-        # Normalize owner type
-        ot = data.get("owner_type", "").lower()
-        if "práv" in ot or "po" in ot:
+        # Normalize owner type from ownership_type field
+        # The Excel has "Typ vlastnictví" (SJM, VL, etc.), not owner type (fyzická/právnická)
+        # Detect právnická by IČ presence
+        birth_or_ico = data.get("birth_number", "")
+        if birth_or_ico and "/" not in birth_or_ico and birth_or_ico.isdigit() and len(birth_or_ico) <= 8:
+            data["ico"] = birth_or_ico
+            data["birth_number"] = ""
             data["owner_type"] = "právnická"
         else:
+            data["ico"] = ""
             data["owner_type"] = "fyzická"
 
+        # unit_number stays as string (e.g., "1098/1")
         # Convert numeric fields
-        for num_field in ["unit_number", "room_count"]:
+        for num_field in ["room_count"]:
             try:
                 data[num_field] = int(float(data.get(num_field, "") or "0"))
             except (ValueError, TypeError):
