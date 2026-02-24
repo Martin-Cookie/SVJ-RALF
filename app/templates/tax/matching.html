@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Párování – {{ session.name }} – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <!-- Page header -->
+    <div class="flex items-center gap-3">
+        <a href="/dane/{{ session.id }}" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Párování dokumentů</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ session.name }}</p>
+        </div>
+    </div>
+
+    {% if matches %}
+    <div class="space-y-3">
+        {% for m in matches %}
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+            <div class="flex items-start justify-between gap-3 mb-3">
+                <div>
+                    <p class="text-sm font-medium text-gray-900 dark:text-white">
+                        <svg class="w-4 h-4 inline text-red-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                        {{ m.document.filename }}
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        Extrahováno: <span class="font-medium">{{ m.document.extracted_name or '–' }}</span>
+                    </p>
+                </div>
+            </div>
+
+            {% if m.distributions %}
+            <div class="space-y-2">
+                {% for dist in m.distributions %}
+                <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg
+                    {% if dist.is_confirmed == 1 %}bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800
+                    {% else %}bg-gray-50 dark:bg-slate-700/50{% endif %}">
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm text-gray-900 dark:text-white">
+                            {% if dist.owner %}
+                            <a href="/vlastnici/{{ dist.owner_id }}" class="text-primary-600 dark:text-primary-400 hover:underline">{{ dist.matched_name }}</a>
+                            {% else %}
+                            {{ dist.matched_name or '–' }}
+                            {% endif %}
+                        </span>
+                        <span class="inline-flex px-1.5 py-0.5 text-xs font-medium rounded
+                            {% if dist.match_score >= 0.8 %}bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300
+                            {% elif dist.match_score >= 0.6 %}bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300
+                            {% else %}bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300{% endif %}">
+                            {{ "%.0f" | format(dist.match_score * 100) }}%
+                        </span>
+                        {% if dist.is_confirmed == 1 %}
+                        <span class="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            Potvrzeno
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if dist.is_confirmed != 1 %}
+                    <form method="post" action="/dane/{{ session.id }}/potvrdit/{{ dist.id }}" class="inline">
+                        <button type="submit" class="px-2 py-1 text-xs font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 rounded transition">
+                            Potvrdit
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-xs text-gray-400 dark:text-gray-500 italic">Žádné automatické párování nalezeno.</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Žádné dokumenty k párování. Nejprve nahrajte PDF soubory.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
