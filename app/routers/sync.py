@@ -350,14 +350,25 @@ def sync_apply_contacts(
     return RedirectResponse(url=f"/synchronizace/{session_id}", status_code=303)
 
 
+def _require_editor_sync(request: Request, db: Session):
+    """Check that current user has editor or admin role for sync operations."""
+    user = get_current_user(request, db)
+    if user is None:
+        return None, RedirectResponse(url="/login", status_code=303)
+    if user.role not in ("admin", "editor"):
+        request.session["flash"] = {"type": "error", "message": "Nemáte oprávnění pro výměnu vlastníků."}
+        return None, RedirectResponse(url="/synchronizace", status_code=303)
+    return user, None
+
+
 @router.get("/synchronizace/{session_id}/vymena/{rec_id}", response_class=HTMLResponse)
 def sync_exchange_preview(
     session_id: int, rec_id: int, request: Request, db: Session = Depends(get_db)
 ):
     """Preview owner exchange for a sync record."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, redirect = _require_editor_sync(request, db)
+    if redirect:
+        return redirect
 
     ss = db.query(SyncSession).filter(SyncSession.id == session_id).first()
     if ss is None:
@@ -406,9 +417,9 @@ def sync_exchange_confirm(
     db: Session = Depends(get_db),
 ):
     """Confirm owner exchange — set valid_to on old OwnerUnit, create new one."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, redirect = _require_editor_sync(request, db)
+    if redirect:
+        return redirect
 
     rec = db.query(SyncRecord).filter(
         SyncRecord.id == rec_id, SyncRecord.session_id == session_id
@@ -419,6 +430,12 @@ def sync_exchange_confirm(
 
     from app.models.owner import Owner, OwnerUnit
     from datetime import date
+
+    # Validate new_owner_id exists and is active
+    new_owner = db.query(Owner).filter(Owner.id == new_owner_id, Owner.is_active == True).first()  # noqa: E712
+    if new_owner is None:
+        request.session["flash"] = {"type": "error", "message": "Vybraný vlastník neexistuje nebo není aktivní."}
+        return RedirectResponse(url=f"/synchronizace/{session_id}/vymena/{rec_id}", status_code=303)
 
     # Soft-delete old OwnerUnit
     if rec.unit_id:
@@ -449,9 +466,9 @@ def sync_bulk_exchange_preview(
     session_id: int, request: Request, db: Session = Depends(get_db)
 ):
     """Preview bulk owner exchange for all differing records."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, redirect = _require_editor_sync(request, db)
+    if redirect:
+        return redirect
 
     ss = db.query(SyncSession).filter(SyncSession.id == session_id).first()
     if ss is None:
@@ -475,9 +492,9 @@ def sync_bulk_exchange_confirm(
     session_id: int, request: Request, db: Session = Depends(get_db)
 ):
     """Confirm bulk owner exchange for all differing records."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, redirect = _require_editor_sync(request, db)
+    if redirect:
+        return redirect
 
     from app.models.owner import Owner, OwnerUnit
     from datetime import date
@@ -489,22 +506,24 @@ def sync_bulk_exchange_confirm(
         SyncRecord.is_resolved == 0,
     ).all()
 
+    # Query all active owners ONCE (fix O(N*M) → O(N+M))
+    all_owners = db.query(Owner).filter(Owner.is_active == True).all()  # noqa: E712
+
     exchanged = 0
     for rec in records:
         if not rec.unit_id or not rec.csv_owner_name:
             continue
 
-        # Find best matching owner
-        owners = db.query(Owner).filter(Owner.is_active == True).all()  # noqa: E712
+        # Find best matching owner from pre-fetched list
         best_match = None
         best_score = 0.0
-        for owner in owners:
+        for owner in all_owners:
             score = SequenceMatcher(None, rec.csv_owner_name.lower(), owner.display_name.lower()).ratio()
             if score > best_score:
                 best_score = score
                 best_match = owner
 
-        if best_match and best_score >= 0.75:
+        if best_match and best_score >= 0.9:
             # Soft-delete old
             old_ous = db.query(OwnerUnit).filter(
                 OwnerUnit.unit_id == rec.unit_id,

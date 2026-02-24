@@ -83,7 +83,7 @@ def test_voting_import_upload(auth_client, db_engine):
 
 
 def test_voting_import_confirm(auth_client, db_engine):
-    """POST /hlasovani/{id}/import/potvrdit creates ballot votes."""
+    """POST /hlasovani/{id}/import/potvrdit creates ballot votes in DB."""
     data = _create_voting_with_items(db_engine)
     excel = _create_import_excel()
 
@@ -100,10 +100,56 @@ def test_voting_import_confirm(auth_client, db_engine):
     )
     assert resp.status_code == 303
 
+    # Verify DB state: BallotVote records should be created
+    from sqlalchemy.orm import Session as SASession
+    from app.models.voting import BallotVote
+    session = SASession(bind=db_engine)
+    votes = session.query(BallotVote).filter(BallotVote.ballot_id == data["ballot_id"]).all()
+    assert len(votes) == 2
+    vote_values = {v.voting_item_id: v.vote for v in votes}
+    assert vote_values[data["item1_id"]] == "PRO"
+    assert vote_values[data["item2_id"]] == "PROTI"
+    session.close()
+
 
 def test_voting_import_requires_login(client, db_engine):
     """Import page requires authentication."""
-    resp = client.get("/hlasovani/1/import")
-    assert resp.status_code in (200, 303)
-    if resp.status_code == 303:
-        assert "/login" in resp.headers.get("location", "")
+    resp = client.get("/hlasovani/1/import", follow_redirects=False)
+    assert resp.status_code == 303
+    assert "/login" in resp.headers.get("location", "")
+
+
+def test_voting_import_invalid_file_type(auth_client, db_engine):
+    """Upload rejects non-Excel files."""
+    data = _create_voting_with_items(db_engine)
+    fake_txt = io.BytesIO(b"this is not an excel file")
+
+    resp = auth_client.post(
+        f"/hlasovani/{data['voting_id']}/import",
+        files={"file": ("bad.txt", fake_txt, "text/plain")},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert "neplatný" in resp.text.lower() or "formát" in resp.text.lower()
+
+
+def test_voting_import_no_token_confirm(auth_client, db_engine):
+    """Confirm without prior upload shows error."""
+    data = _create_voting_with_items(db_engine)
+    resp = auth_client.post(
+        f"/hlasovani/{data['voting_id']}/import/potvrdit",
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "/import" in resp.headers.get("location", "")
+
+
+def test_voting_import_role_check(reader_client, db_engine):
+    """Reader role cannot access voting import."""
+    data = _create_voting_with_items(db_engine)
+    resp = reader_client.get(
+        f"/hlasovani/{data['voting_id']}/import",
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "/hlasovani" in resp.headers.get("location", "") or "/login" in resp.headers.get("location", "")

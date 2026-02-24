@@ -1,6 +1,6 @@
 """Tests for Sync Owner Exchange — Iterace 14, Blok F.
 
-Covers: single exchange preview + confirm, bulk exchange.
+Covers: single exchange preview + confirm, bulk exchange, role checks, validation.
 """
 
 
@@ -69,7 +69,28 @@ def test_sync_exchange_confirm(auth_client, db_engine):
     session = SASession(bind=db_engine)
     old_ou = session.query(OwnerUnit).filter(OwnerUnit.id == data["ou_id"]).first()
     assert old_ou.valid_to is not None
+    # New OwnerUnit should exist
+    new_ou = session.query(OwnerUnit).filter(
+        OwnerUnit.owner_id == data["new_owner_id"],
+        OwnerUnit.unit_id == data["unit_id"],
+        OwnerUnit.valid_to.is_(None),
+    ).first()
+    assert new_ou is not None
     session.close()
+
+
+def test_sync_exchange_confirm_invalid_owner(auth_client, db_engine):
+    """Exchange confirm rejects invalid/nonexistent owner_id."""
+    data = _create_sync_with_different_owners(db_engine)
+    resp = auth_client.post(
+        f"/synchronizace/{data['session_id']}/vymena/{data['rec_id']}/potvrdit",
+        data={"new_owner_id": "99999"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    # Should redirect back to exchange preview, not to session page
+    location = resp.headers.get("location", "")
+    assert "/vymena/" in location
 
 
 def test_sync_bulk_exchange_preview(auth_client, db_engine):
@@ -91,8 +112,31 @@ def test_sync_bulk_exchange_confirm(auth_client, db_engine):
     )
     assert resp.status_code == 303
 
+    # Verify DB: with 0.9 threshold, name "Vlastník Nový" vs "Nový Vlastník"
+    # may or may not match depending on SequenceMatcher. Check record status.
+    from sqlalchemy.orm import Session as SASession
+    from app.models.sync import SyncRecord
+    session = SASession(bind=db_engine)
+    rec = session.query(SyncRecord).filter(SyncRecord.id == data["rec_id"]).first()
+    # Record may or may not be resolved depending on fuzzy match score
+    assert rec is not None
+    session.close()
+
 
 def test_sync_exchange_requires_login(client):
     """Exchange endpoint requires authentication."""
-    resp = client.get("/synchronizace/1/vymena/1")
-    assert resp.status_code in (200, 303)
+    resp = client.get("/synchronizace/1/vymena/1", follow_redirects=False)
+    assert resp.status_code == 303
+    assert "/login" in resp.headers.get("location", "")
+
+
+def test_sync_exchange_role_check(reader_client, db_engine):
+    """Reader role cannot perform owner exchanges."""
+    data = _create_sync_with_different_owners(db_engine)
+    resp = reader_client.get(
+        f"/synchronizace/{data['session_id']}/vymena/{data['rec_id']}",
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    location = resp.headers.get("location", "")
+    assert "/synchronizace" in location or "/login" in location

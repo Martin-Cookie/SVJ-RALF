@@ -6,7 +6,7 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -70,6 +70,43 @@ def voting_create_page(request: Request, db: Session = Depends(get_db)):
     return request.app.state.templates.TemplateResponse(
         request, "voting/create.html", {"user": user}
     )
+
+
+@router.post("/hlasovani/nova/nahled-metadat")
+async def voting_preview_metadata(
+    request: Request,
+    template: UploadFile = File(...),
+):
+    """AJAX endpoint: extract metadata from uploaded .docx and return JSON."""
+    if not template.filename or not template.filename.endswith(".docx"):
+        return JSONResponse({"error": "Nahrajte .docx soubor"}, status_code=400)
+
+    upload_dir = os.path.join(settings.UPLOAD_DIR, "templates")
+    os.makedirs(upload_dir, exist_ok=True)
+    temp_path = os.path.join(upload_dir, f"_preview_{uuid.uuid4()}.docx")
+
+    try:
+        content = await template.read()
+        with open(temp_path, "wb") as f:
+            f.write(content)
+
+        from app.services.word_parser import parse_voting_items, extract_voting_metadata
+
+        meta = extract_voting_metadata(temp_path)
+        items = parse_voting_items(temp_path)
+        return JSONResponse({
+            "meta": meta,
+            "items_count": len(items),
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=500)
+    finally:
+        try:
+            os.unlink(temp_path)
+        except Exception:
+            pass
 
 
 @router.post("/hlasovani/nova")
@@ -645,14 +682,29 @@ def unsubmitted_ballots(
     )
 
 
+def _require_editor_voting(request: Request, db: Session):
+    """Check that current user has editor or admin role."""
+    user = get_current_user(request, db)
+    if user is None:
+        return None, RedirectResponse(url="/login", status_code=303)
+    if user.role not in ("admin", "editor"):
+        request.session["flash"] = {"type": "error", "message": "Nemáte oprávnění pro import."}
+        return None, RedirectResponse(url="/hlasovani", status_code=303)
+    return user, None
+
+
+_MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+_ALLOWED_EXTENSIONS = {".xlsx", ".xls"}
+
+
 @router.get("/hlasovani/{voting_id}/import", response_class=HTMLResponse)
 def voting_import_page(
     voting_id: int, request: Request, db: Session = Depends(get_db)
 ):
     """Show voting result import page."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, redirect = _require_editor_voting(request, db)
+    if redirect:
+        return redirect
 
     voting = db.query(Voting).filter(Voting.id == voting_id).first()
     if voting is None:
@@ -675,9 +727,9 @@ async def voting_import_upload(
     db: Session = Depends(get_db),
 ):
     """Upload Excel with voting results, show preview."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, redirect = _require_editor_voting(request, db)
+    if redirect:
+        return redirect
 
     voting = db.query(Voting).filter(Voting.id == voting_id).first()
     if voting is None:
@@ -685,10 +737,29 @@ async def voting_import_upload(
 
     items = db.query(VotingItem).filter(VotingItem.voting_id == voting_id).order_by(VotingItem.number).all()
 
+    # Validate file extension
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in _ALLOWED_EXTENSIONS:
+        request.session["flash"] = {"type": "error", "message": "Neplatný formát souboru. Povolené: .xlsx, .xls"}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
+
+    # Read and validate file size
+    content = await file.read()
+    if len(content) > _MAX_UPLOAD_SIZE:
+        request.session["flash"] = {"type": "error", "message": "Soubor je příliš velký (max 10 MB)."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
+
     # Save uploaded file to temp directory
     token = str(uuid.uuid4())
     temp_path = os.path.join(_IMPORT_TEMP_DIR, f"{token}.xlsx")
-    content = await file.read()
+    # Path traversal validation (token is UUID4, but defense in depth)
+    real_path = os.path.realpath(temp_path)
+    real_dir = os.path.realpath(_IMPORT_TEMP_DIR)
+    if not real_path.startswith(real_dir + os.sep):
+        request.session["flash"] = {"type": "error", "message": "Neplatná cesta souboru."}
+        return RedirectResponse(url=f"/hlasovani/{voting_id}/import", status_code=303)
+
     with open(temp_path, "wb") as f:
         f.write(content)
 
@@ -749,9 +820,9 @@ def voting_import_confirm(
     voting_id: int, request: Request, db: Session = Depends(get_db)
 ):
     """Confirm voting result import from Excel."""
-    user = get_current_user(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
+    user, redirect = _require_editor_voting(request, db)
+    if redirect:
+        return redirect
 
     voting = db.query(Voting).filter(Voting.id == voting_id).first()
     if voting is None:
@@ -777,7 +848,6 @@ def voting_import_confirm(
         wb.close()
 
         from app.models.owner import Owner, Unit, OwnerUnit
-        from difflib import SequenceMatcher
 
         imported = 0
         vote_mapping = {"pro": "PRO", "1": "PRO", "ano": "PRO", "yes": "PRO",
