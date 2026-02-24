@@ -44,15 +44,15 @@
     {% if units %}
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="w-full text-sm sortable" data-sort-table>
                 <thead>
                     <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
-                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Číslo</th>
-                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Budova</th>
-                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell">Sekce</th>
-                        <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400">Plocha m²</th>
-                        <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell">Podíl SČD</th>
-                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden lg:table-cell">Vlastníci</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="0">Číslo ↕</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="1">Budova ↕</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="2">Sekce ↕</th>
+                        <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="3">Plocha m² ↕</th>
+                        <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400 hidden md:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="4">Podíl SČD ↕</th>
+                        <th class="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400 hidden lg:table-cell cursor-pointer hover:text-gray-900 dark:hover:text-white" data-sort="5">Vlastníci ↕</th>
                         <th class="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400">Akce</th>
                     </tr>
                 </thead>

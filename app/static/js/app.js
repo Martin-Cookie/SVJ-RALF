@@ -143,3 +143,49 @@ document.addEventListener('click', function (e) {
         results.classList.add('hidden');
     }
 });
+
+// === Client-side table sorting ===
+(function initSortable() {
+    document.querySelectorAll('[data-sort-table]').forEach(function (table) {
+        var sortState = {};
+        table.querySelectorAll('th[data-sort]').forEach(function (th) {
+            th.addEventListener('click', function () {
+                var colIdx = parseInt(th.getAttribute('data-sort'));
+                var tbody = table.querySelector('tbody');
+                if (!tbody) return;
+                var rows = Array.from(tbody.querySelectorAll('tr'));
+                var asc = sortState[colIdx] !== 'asc';
+                sortState[colIdx] = asc ? 'asc' : 'desc';
+
+                rows.sort(function (a, b) {
+                    var cellA = a.cells[colIdx];
+                    var cellB = b.cells[colIdx];
+                    if (!cellA || !cellB) return 0;
+                    var va = (cellA.textContent || '').trim();
+                    var vb = (cellB.textContent || '').trim();
+                    // Try numeric comparison
+                    var na = parseFloat(va.replace(/[^\d.\-]/g, ''));
+                    var nb = parseFloat(vb.replace(/[^\d.\-]/g, ''));
+                    if (!isNaN(na) && !isNaN(nb)) {
+                        return asc ? na - nb : nb - na;
+                    }
+                    // Fallback to locale string comparison
+                    var cmp = va.localeCompare(vb, 'cs', { sensitivity: 'base' });
+                    return asc ? cmp : -cmp;
+                });
+
+                rows.forEach(function (row) { tbody.appendChild(row); });
+
+                // Update header arrows
+                table.querySelectorAll('th[data-sort]').forEach(function (h) {
+                    var txt = h.textContent.replace(/[↑↓↕]/g, '').trim();
+                    if (h === th) {
+                        h.textContent = txt + (asc ? ' ↑' : ' ↓');
+                    } else {
+                        h.textContent = txt + ' ↕';
+                    }
+                });
+            });
+        });
+    });
+})();
