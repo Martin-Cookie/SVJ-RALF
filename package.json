@@ -1,0 +1,27 @@
+{
+  "name": "svj-ralf",
+  "version": "1.0.0",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Martin-Cookie/SVJ-RALF.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Martin-Cookie/SVJ-RALF/issues"
+  },
+  "homepage": "https://github.com/Martin-Cookie/SVJ-RALF#readme",
+  "description": "",
+  "dependencies": {
+    "@playwright/test": "^1.58.2",
+    "playwright": "^1.58.2"
+  }
+}

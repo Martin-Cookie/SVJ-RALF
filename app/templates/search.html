@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Hledání – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <h2 class="text-xl font-bold mb-4">Výsledky hledání</h2>
+
+    {% if q %}
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+        Hledáno: <strong>{{ q }}</strong> — {{ total }} výsledků
+    </p>
+
+    {% if total == 0 %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center">
+        <svg class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <p class="text-gray-500 dark:text-gray-400">Nic nenalezeno pro <strong>{{ q }}</strong></p>
+    </div>
+    {% endif %}
+
+    {% if results.owners %}
+    <div class="mb-6">
+        <h3 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Vlastníci ({{ results.owners|length }})</h3>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 divide-y divide-gray-100 dark:divide-slate-700">
+            {% for o in results.owners %}
+            <a href="/vlastnici/{{ o.id }}" class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-700 transition">
+                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                <div>
+                    <div class="text-sm font-medium">{{ o.display_name }}</div>
+                    {% if o.email %}<div class="text-xs text-gray-400">{{ o.email }}</div>{% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if results.units %}
+    <div class="mb-6">
+        <h3 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Jednotky ({{ results.units|length }})</h3>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 divide-y divide-gray-100 dark:divide-slate-700">
+            {% for u in results.units %}
+            <a href="/jednotky/{{ u.id }}" class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-700 transition">
+                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/></svg>
+                <div>
+                    <div class="text-sm font-medium">Jednotka č. {{ u.unit_number }}</div>
+                    <div class="text-xs text-gray-400">{{ u.building }} {{ u.section }}</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if results.votings %}
+    <div class="mb-6">
+        <h3 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Hlasování ({{ results.votings|length }})</h3>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 divide-y divide-gray-100 dark:divide-slate-700">
+            {% for v in results.votings %}
+            <a href="/hlasovani/{{ v.id }}" class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-700 transition">
+                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                <div>
+                    <div class="text-sm font-medium">{{ v.name }}</div>
+                    <div class="text-xs text-gray-400">{{ v.status }}</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center">
+        <p class="text-gray-500 dark:text-gray-400">Zadejte hledaný výraz (min. 2 znaky)</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
