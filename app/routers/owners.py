@@ -1,5 +1,8 @@
 """Owner management routes."""
 import io
+import json
+import os
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -7,9 +10,14 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.models.owner import Owner, OwnerUnit, Unit
 from app.models.common import ImportLog
+
+# Temp directory for import previews (cookie is too small for large datasets)
+_IMPORT_TEMP_DIR = os.path.join(settings.UPLOAD_DIR, "_import_temp")
+os.makedirs(_IMPORT_TEMP_DIR, exist_ok=True)
 
 router = APIRouter()
 
@@ -159,9 +167,13 @@ def import_upload(
         .all()
     )
 
-    # Store parsed data in session for confirmation
-    if rows and not errors:
-        request.session["import_preview"] = rows
+    # Store parsed data in temp file (cookie session is too small for large datasets)
+    if rows:
+        token = str(uuid.uuid4())
+        temp_path = os.path.join(_IMPORT_TEMP_DIR, f"{token}.json")
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(rows, f, ensure_ascii=False)
+        request.session["import_token"] = token
 
     return request.app.state.templates.TemplateResponse(
         request,
@@ -177,7 +189,14 @@ def import_confirm(request: Request, db: Session = Depends(get_db)):
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
 
-    rows = request.session.pop("import_preview", [])
+    token = request.session.pop("import_token", "")
+    rows = []
+    if token:
+        temp_path = os.path.join(_IMPORT_TEMP_DIR, f"{token}.json")
+        if os.path.exists(temp_path):
+            with open(temp_path, "r", encoding="utf-8") as f:
+                rows = json.load(f)
+            os.remove(temp_path)
     if not rows:
         request.session["flash"] = {"type": "error", "message": "Žádná data k importu."}
         return RedirectResponse(url="/vlastnici/import", status_code=303)
