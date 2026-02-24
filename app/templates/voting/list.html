@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Hlasování – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <!-- Page header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Hlasování</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Celkem {{ total }} hlasování</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="/hlasovani/nova" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Nové hlasování
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter bubbles -->
+    <div class="flex items-center gap-2 flex-wrap">
+        <a href="/hlasovani"
+           class="px-3 py-1.5 text-xs font-medium rounded-full transition
+                  {% if not status %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                  {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+            Vše ({{ total }})
+        </a>
+        <a href="/hlasovani?status=koncept"
+           class="px-3 py-1.5 text-xs font-medium rounded-full transition
+                  {% if status == 'koncept' %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                  {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+            Koncept ({{ koncept_count }})
+        </a>
+        <a href="/hlasovani?status=aktivní"
+           class="px-3 py-1.5 text-xs font-medium rounded-full transition
+                  {% if status == 'aktivní' %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                  {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+            Aktivní ({{ aktivni_count }})
+        </a>
+        <a href="/hlasovani?status=uzavřené"
+           class="px-3 py-1.5 text-xs font-medium rounded-full transition
+                  {% if status == 'uzavřené' %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                  {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+            Uzavřené ({{ uzavrene_count }})
+        </a>
+        <a href="/hlasovani?status=zrušené"
+           class="px-3 py-1.5 text-xs font-medium rounded-full transition
+                  {% if status == 'zrušené' %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
+                  {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+            Zrušené ({{ zrusene_count }})
+        </a>
+    </div>
+
+    <!-- Voting list -->
+    {% if votings %}
+    <div class="space-y-3">
+        {% for voting in votings %}
+        <a href="/hlasovani/{{ voting.id }}" class="block bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 hover:border-primary-300 dark:hover:border-primary-700 transition group">
+            <div class="flex items-center justify-between">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 truncate">{{ voting.name }}</h3>
+                        <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full flex-shrink-0
+                            {% if voting.status == 'koncept' %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300
+                            {% elif voting.status == 'aktivní' %}bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300
+                            {% elif voting.status == 'uzavřené' %}bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300
+                            {% else %}bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300{% endif %}">
+                            {{ voting.status }}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                        <span>Kvórum: {{ voting.quorum }}%</span>
+                        {% if voting.start_date %}
+                        <span>Od: {{ voting.start_date | datum }}</span>
+                        {% endif %}
+                        {% if voting.end_date %}
+                        <span>Do: {{ voting.end_date | datum }}</span>
+                        {% endif %}
+                        <span>Vytvořeno: {{ voting.created_at | datum }}</span>
+                    </div>
+                </div>
+                <svg class="w-4 h-4 text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- Empty state -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center">
+        <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-1">Žádná hlasování</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Zatím nebyla vytvořena žádná hlasování.</p>
+        <a href="/hlasovani/nova" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Vytvořit hlasování
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
