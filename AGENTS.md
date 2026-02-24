@@ -17,6 +17,9 @@
 - [iter 5] Starlette FormData.getlist(): pro multi-value form fields (ballot_ids) použij form.getlist("field_name")
 - [iter 6] PDF name extraction: pdfplumber best-effort with filename fallback — nikdy nespoléhej na úspěšnou extrakci
 - [iter 6] Fuzzy matching: difflib.SequenceMatcher with bidirectional name comparison (First Last vs Last First)
+- [iter 7] Playwright strict mode: input[name="name"] matchuje více elementů na admin page → scope with section locator
+- [iter 7] Collapsible `<details>`: po redirect se zavřou → v E2E testech znovu otevřít summary po page load
+- [iter 7] Playwright data persistence: pro board member add testy použij unique name s Date.now()
 
 ## Patterns (co funguje dobře v tomto projektu)
 - [iter 1] FastAPI Form() params místo asyncio.new_event_loop() hacku pro form data
@@ -30,7 +33,7 @@
 ## Known Issues (problémy které ještě nejsou vyřešené)
 - spustit.command + pripravit_usb.sh ještě nevytvořeny (plán: Blok 10)
 - Test coverage measurement neprobíhá (plán: iter 3)
-- Sidebar linky na neexistující routes (dane, synchronizace, sprava, nastaveni) → budou v Bloku 6–10
+- [RESOLVED iter 7] Sidebar linky na neexistující routes — nyní všechny routes implementované
 - starlette 0.38.6 CVE (GHSA-f96h-pmfr-66vw) — pinned by FastAPI 0.115.0, upgrade v Bloku 10
 - Pokročilé filtry vlastníků (sekce, typ vlastnictví, s/bez email/telefon) → iter 3
 - Import flow E2E test chybí (session-based = těžké testovat v Playwright) → iter 3

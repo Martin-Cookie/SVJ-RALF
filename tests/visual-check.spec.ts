@@ -82,6 +82,22 @@ test.describe('Visual Check', () => {
         fullPage: true,
       });
 
+      // Admin page
+      await page.goto('/sprava');
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({
+        path: `screenshots/iter-${ITER}-${PHASE}-${vp.name}-admin.png`,
+        fullPage: true,
+      });
+
+      // Settings page
+      await page.goto('/nastaveni');
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({
+        path: `screenshots/iter-${ITER}-${PHASE}-${vp.name}-settings.png`,
+        fullPage: true,
+      });
+
       // Login page
       await page.goto('/logout');
       await page.waitForLoadState('networkidle');
