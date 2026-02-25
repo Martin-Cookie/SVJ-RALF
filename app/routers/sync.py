@@ -97,13 +97,28 @@ async def sync_upload_csv(
     from app.models.owner import Owner, Unit, OwnerUnit
     from difflib import SequenceMatcher
 
+    # Check if we have first_name/last_name split columns
+    first_name_col = header_map.get("first_name", "")
+    last_name_col = header_map.get("last_name", "")
+
+    record_count = 0
     for row in reader:
         unit_col = header_map.get("unit", "")
         owner_col = header_map.get("owner", "")
         share_col = header_map.get("share", "")
 
         csv_unit = row.get(unit_col, "").strip() if unit_col else ""
-        csv_owner = row.get(owner_col, "").strip() if owner_col else ""
+
+        # Build owner name: combined column or first+last
+        if owner_col:
+            csv_owner = row.get(owner_col, "").strip()
+        elif first_name_col or last_name_col:
+            fn = row.get(first_name_col, "").strip() if first_name_col else ""
+            ln = row.get(last_name_col, "").strip() if last_name_col else ""
+            csv_owner = f"{ln} {fn}".strip()
+        else:
+            csv_owner = ""
+
         csv_share = row.get(share_col, "").strip() if share_col else ""
 
         if not csv_unit and not csv_owner:
@@ -146,10 +161,22 @@ async def sync_upload_csv(
             csv_share=csv_share,
         )
         db.add(record)
+        record_count += 1
 
     db.commit()
 
-    request.session["flash"] = {"type": "success", "message": f"Synchronizace '{session_name}' vytvořena."}
+    if record_count == 0:
+        detected = ", ".join(f"{k}='{v}'" for k, v in header_map.items()) if header_map else "žádné"
+        request.session["flash"] = {
+            "type": "error",
+            "message": (
+                f"Synchronizace '{session_name}' vytvořena, ale nebyly naparsovány žádné záznamy. "
+                f"Detekované sloupce: {detected}. "
+                f"Hlavičky CSV: {', '.join(fieldnames[:10])}."
+            ),
+        }
+    else:
+        request.session["flash"] = {"type": "success", "message": f"Synchronizace '{session_name}' vytvořena — {record_count} záznamů."}
     return RedirectResponse(url=f"/synchronizace/{ss.id}", status_code=303)
 
 
@@ -657,16 +684,60 @@ def sync_export(
 
 
 def _detect_columns(headers: list) -> dict:
-    """Detect unit/owner/share columns from CSV headers."""
+    """Detect unit/owner/share columns from CSV headers.
+
+    Supports multiple formats:
+    - Czech: "Jednotka", "Vlastník", "Podíl", "Číslo jednotky"
+    - Internal export: "unit_number", "first_name", "last_name"
+    - sousede.cz and other external sources
+    """
     mapping = {}
     for h in headers:
         hl = h.lower().strip()
-        if any(kw in hl for kw in ["jednotka", "unit", "byt", "číslo"]):
+        # Unit column — must be checked before generic "číslo"
+        if "unit" in mapping:
+            pass  # already found
+        elif any(kw in hl for kw in [
+            "jednotka", "unit_number", "unit", "byt",
+            "číslo jednotky", "cislo jednotky", "č. jednotky",
+        ]):
             mapping["unit"] = h
-        elif any(kw in hl for kw in ["vlastník", "vlastnik", "jméno", "jmeno", "owner"]):
+        elif hl == "číslo" or hl == "cislo" or hl == "id":
+            # Generic "číslo" or "id" — only use as unit if no better match
+            if "unit" not in mapping:
+                mapping["unit"] = h
+
+    for h in headers:
+        hl = h.lower().strip()
+        # Owner column
+        if "owner" in mapping:
+            pass
+        elif any(kw in hl for kw in [
+            "vlastník", "vlastnik", "owner", "jméno a příjmení",
+            "jmeno a prijmeni", "name_with_titles",
+        ]):
             mapping["owner"] = h
-        elif any(kw in hl for kw in ["podíl", "podil", "share", "sčd"]):
+
+    # If no combined owner column, look for first_name + last_name
+    if "owner" not in mapping:
+        for h in headers:
+            hl = h.lower().strip()
+            if any(kw in hl for kw in ["příjmení", "prijmeni", "last_name", "lastname"]):
+                mapping["last_name"] = h
+            elif any(kw in hl for kw in ["jméno", "jmeno", "first_name", "firstname"]):
+                mapping["first_name"] = h
+
+    for h in headers:
+        hl = h.lower().strip()
+        # Share column
+        if "share" in mapping:
+            pass
+        elif any(kw in hl for kw in [
+            "podíl", "podil", "share", "sčd", "scd",
+            "votes", "hlasy", "podíl sčd",
+        ]):
             mapping["share"] = h
+
     return mapping
 
 
