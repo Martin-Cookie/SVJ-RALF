@@ -128,7 +128,10 @@
                         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden md:table-cell">{{ owner.email or "–" }}</td>
                         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden md:table-cell">{{ owner.phone or "–" }}</td>
                         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden lg:table-cell">
-                            {% if owner.owner_type == 'physical' and owner.birth_number %}{{ owner.birth_number[:6] }}/****{% elif owner.owner_type == 'legal' and owner.company_id %}{{ owner.company_id }}{% else %}–{% endif %}
+                            {% if owner.owner_type == 'physical' and owner.birth_number %}
+                                <span class="rc-masked" data-full="{{ owner.birth_number }}">{{ owner.birth_number[:6] }}/****</span>
+                                <button type="button" onclick="this.previousElementSibling.textContent = this.previousElementSibling.textContent.includes('****') ? this.previousElementSibling.dataset.full : this.previousElementSibling.dataset.full.slice(0,6)+'/****'; this.textContent = this.textContent === 'zobrazit' ? 'skrýt' : 'zobrazit';" class="text-xs text-primary-500 hover:text-primary-700 ml-1">zobrazit</button>
+                            {% elif owner.owner_type == 'legal' and owner.company_id %}{{ owner.company_id }}{% else %}–{% endif %}
                         </td>
                         <td class="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400 hidden lg:table-cell">
                             {% set active_units = owner.owner_units | selectattr('valid_to', 'none') | list %}
@@ -142,7 +145,12 @@
                             {{ sections | join(", ") if sections else "–" }}
                         </td>
                         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden xl:table-cell">
-                            {{ owner.owner_units | selectattr('valid_to', 'none') | list | length }}
+                            {% set active_ous = owner.owner_units | selectattr('valid_to', 'none') | list %}
+                            {% if active_ous %}
+                                {% for ou in active_ous %}
+                                    <a href="/jednotky/{{ ou.unit.id }}" class="text-primary-600 dark:text-primary-400 hover:underline">{{ ou.unit.unit_number }}</a>{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            {% else %}–{% endif %}
                         </td>
                         <td class="px-4 py-2.5 text-right">
                             <a href="/vlastnici/{{ owner.id }}{% if current_url != '/vlastnici' %}?back_url={{ current_url | urlencode }}{% endif %}" class="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition">

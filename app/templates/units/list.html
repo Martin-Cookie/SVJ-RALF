@@ -121,7 +121,12 @@
                         <td class="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400">{{ unit.floor_area | cislo if unit.floor_area else "–" }}</td>
                         <td class="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400 hidden md:table-cell">{{ unit.podil_scd | cislo if unit.podil_scd else "–" }}</td>
                         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hidden xl:table-cell">
-                            {{ unit.owner_units | selectattr('valid_to', 'none') | list | length }}
+                            {% set active_ous = unit.owner_units | selectattr('valid_to', 'none') | list %}
+                            {% if active_ous %}
+                                {% for ou in active_ous %}
+                                    <a href="/vlastnici/{{ ou.owner.id }}" class="text-primary-600 dark:text-primary-400 hover:underline">{{ ou.owner.display_name }}</a>{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            {% else %}–{% endif %}
                         </td>
                         <td class="px-4 py-2.5 text-right">
                             <a href="/jednotky/{{ unit.id }}" class="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition">

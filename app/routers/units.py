@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.auth import get_current_user
 from app.database import get_db
@@ -57,7 +57,9 @@ def units_list(
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
 
-    query = db.query(Unit)
+    query = db.query(Unit).options(
+        selectinload(Unit.owner_units).selectinload(OwnerUnit.owner)
+    )
 
     # Search filter
     if search:
