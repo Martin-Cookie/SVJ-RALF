@@ -24,24 +24,17 @@
                 </div>
             </form>
         </div>
-        <!-- Filter bubbles: Budova -->
+        <!-- Filter: Budova (dropdown — too many values for bubbles) -->
         {% if building_list %}
-        <div class="flex items-center gap-2 flex-wrap flex-1">
+        <div class="flex items-center gap-2">
             <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Budova:</span>
-            <a href="/jednotky{% if search %}?search={{ search }}{% endif %}{% if space_type %}&space_type={{ space_type }}{% endif %}{% if section %}&section={{ section }}{% endif %}"
-               class="flex-1 text-center px-3 py-1.5 text-xs font-medium rounded-full transition
-                      {% if not building %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
-                      {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
-                Všechny
-            </a>
-            {% for b in building_list %}
-            <a href="/jednotky?building={{ b }}{% if search %}&search={{ search }}{% endif %}{% if space_type %}&space_type={{ space_type }}{% endif %}{% if section %}&section={{ section }}{% endif %}"
-               class="flex-1 text-center px-3 py-1.5 text-xs font-medium rounded-full transition
-                      {% if building == b %}bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800
-                      {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
-                {{ b }}
-            </a>
-            {% endfor %}
+            <select onchange="if(this.value) window.location=this.value"
+                    class="h-8 px-3 text-sm bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 {% if building %}border-primary-400 text-primary-700 dark:text-primary-300{% else %}text-gray-600 dark:text-gray-400{% endif %}">
+                <option value="/jednotky{% if search %}?search={{ search }}{% endif %}{% if space_type %}&space_type={{ space_type }}{% endif %}{% if section %}&section={{ section }}{% endif %}">Všechny budovy</option>
+                {% for b in building_list %}
+                <option value="/jednotky?building={{ b }}{% if search %}&search={{ search }}{% endif %}{% if space_type %}&space_type={{ space_type }}{% endif %}{% if section %}&section={{ section }}{% endif %}" {% if building == b %}selected{% endif %}>{{ b }}</option>
+                {% endfor %}
+            </select>
         </div>
         {% endif %}
         <!-- Filter bubbles: Typ prostoru -->
