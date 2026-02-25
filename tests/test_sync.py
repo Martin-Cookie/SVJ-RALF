@@ -22,8 +22,8 @@ def test_sync_upload_page(auth_client):
     assert "form" in resp.text.lower()
 
 
-def test_sync_upload_csv(auth_client, db_engine):
-    """POST /synchronizace/nova should create a sync session from CSV."""
+def test_sync_upload_csv_shows_mapping(auth_client, db_engine):
+    """POST /synchronizace/nova should show column mapping page."""
     from sqlalchemy.orm import Session as SASession
     from app.models.owner import Owner, Unit, OwnerUnit
 
@@ -37,7 +37,7 @@ def test_sync_upload_csv(auth_client, db_engine):
     session.commit()
     session.close()
 
-    # Upload CSV
+    # Upload CSV → should return column mapping page (200)
     csv_content = b"jednotka;vlastnik;podil\n101;Jan Nov\xc3\xa1k;1/1\n"
     resp = auth_client.post(
         "/synchronizace/nova",
@@ -45,8 +45,79 @@ def test_sync_upload_csv(auth_client, db_engine):
         files=[("file", ("test.csv", csv_content, "text/csv"))],
         follow_redirects=False,
     )
+    assert resp.status_code == 200
+    assert "Mapování sloupců" in resp.text
+    # Auto-detected columns should be pre-selected
+    assert "jednotka" in resp.text
+    assert "vlastnik" in resp.text
+    assert "podil" in resp.text
+    # Preview data should be visible
+    assert "101" in resp.text
+    assert "Novák" in resp.text
+
+
+def test_sync_confirm_mapping(auth_client, db_engine):
+    """POST /synchronizace/nova/potvrdit should create sync session with confirmed mapping."""
+    from sqlalchemy.orm import Session as SASession
+    from app.models.owner import Owner, Unit, OwnerUnit
+    from app.models.sync import SyncSession, SyncRecord
+
+    # Create test data in DB
+    session = SASession(bind=db_engine)
+    owner = Owner(first_name="Jan", last_name="Novák", name_with_titles="Novák Jan", name_normalized="novak jan", owner_type="physical")
+    unit = Unit(unit_number=101, building_number="A", floor_area=50.0)
+    session.add_all([owner, unit])
+    session.flush()
+    session.add(OwnerUnit(owner_id=owner.id, unit_id=unit.id, share=1.0, votes=100))
+    session.commit()
+    session.close()
+
+    # Step 1: Upload CSV to get token into session
+    csv_content = b"jednotka;vlastnik;podil\n101;Jan Nov\xc3\xa1k;1/1\n"
+    resp1 = auth_client.post(
+        "/synchronizace/nova",
+        data={"name": "Test sync"},
+        files=[("file", ("test.csv", csv_content, "text/csv"))],
+        follow_redirects=False,
+    )
+    assert resp1.status_code == 200
+
+    # Step 2: Confirm mapping → should create session and redirect
+    resp2 = auth_client.post(
+        "/synchronizace/nova/potvrdit",
+        data={
+            "unit_col": "jednotka",
+            "owner_col": "vlastnik",
+            "share_col": "podil",
+            "first_name_col": "",
+            "last_name_col": "",
+        },
+        follow_redirects=False,
+    )
+    assert resp2.status_code == 303
+    assert "/synchronizace/" in resp2.headers.get("location", "")
+
+    # Verify sync session was created with records
+    session = SASession(bind=db_engine)
+    ss = session.query(SyncSession).first()
+    assert ss is not None
+    assert ss.name == "Test sync"
+    records = session.query(SyncRecord).filter(SyncRecord.session_id == ss.id).all()
+    assert len(records) == 1
+    assert records[0].csv_owner_name == "Jan Novák"
+    assert records[0].unit_id is not None
+    session.close()
+
+
+def test_sync_confirm_without_token(auth_client):
+    """POST /synchronizace/nova/potvrdit without token should redirect."""
+    resp = auth_client.post(
+        "/synchronizace/nova/potvrdit",
+        data={"unit_col": "", "owner_col": "", "share_col": ""},
+        follow_redirects=False,
+    )
     assert resp.status_code == 303
-    assert "/synchronizace/" in resp.headers.get("location", "")
+    assert "/synchronizace/nova" in resp.headers.get("location", "")
 
 
 def test_sync_detail(auth_client, db_engine):

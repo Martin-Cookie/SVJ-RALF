@@ -1,7 +1,9 @@
 """Sync (Synchronizace) routes — CSV upload, comparison, update."""
 import csv
 import io
+import json
 import os
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -9,10 +11,14 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.models.sync import SyncSession, SyncRecord
 
 router = APIRouter()
+
+_SYNC_TEMP_DIR = os.path.join(settings.UPLOAD_DIR, "_sync_import_temp")
+os.makedirs(_SYNC_TEMP_DIR, exist_ok=True)
 
 
 @router.get("/synchronizace", response_class=HTMLResponse)
@@ -59,7 +65,7 @@ async def sync_upload_csv(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    """Upload CSV and compare with DB."""
+    """Step 1: Upload CSV → save to temp → detect columns → show mapping form."""
     user = get_current_user(request, db)
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
@@ -82,31 +88,118 @@ async def sync_upload_csv(
     if "sousede" in text.lower() or "katastral" in text.lower():
         source_format = "sousede.cz"
 
+    # Save CSV to temp file
+    token = str(uuid.uuid4())
+    temp_path = os.path.join(_SYNC_TEMP_DIR, f"{token}.csv")
+    real_path = os.path.realpath(temp_path)
+    real_dir = os.path.realpath(_SYNC_TEMP_DIR)
+    if not real_path.startswith(real_dir + os.sep):
+        request.session["flash"] = {"type": "error", "message": "Neplatná cesta souboru."}
+        return RedirectResponse(url="/synchronizace/nova", status_code=303)
+
+    with open(temp_path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+    # Parse headers and sample rows
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+    headers = reader.fieldnames or []
+
+    if not headers:
+        os.remove(temp_path)
+        request.session["flash"] = {"type": "error", "message": "CSV soubor neobsahuje žádné hlavičky."}
+        return RedirectResponse(url="/synchronizace/nova", status_code=303)
+
+    # Read sample rows for preview (first 5)
+    sample_rows = []
+    for i, row in enumerate(reader):
+        if i >= 5:
+            break
+        sample_rows.append(row)
+
+    # Count total rows
+    text_io = io.StringIO(text)
+    total_reader = csv.DictReader(text_io, delimiter=delimiter)
+    total_rows = sum(1 for _ in total_reader)
+
+    # Auto-detect column mapping
+    auto_mapping = _detect_columns(headers)
+
+    # Store session data
     session_name = name or file.filename or "Synchronizace"
+    request.session["sync_import_token"] = token
+    request.session["sync_import_name"] = session_name
+    request.session["sync_import_format"] = source_format
+    request.session["sync_import_delimiter"] = delimiter
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "sync/column_mapping.html",
+        {
+            "user": user,
+            "session_name": session_name,
+            "source_format": source_format,
+            "headers": headers,
+            "sample_rows": sample_rows,
+            "total_rows": total_rows,
+            "auto_mapping": auto_mapping,
+        },
+    )
+
+
+@router.post("/synchronizace/nova/potvrdit")
+async def sync_confirm_mapping(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Step 2: Use confirmed mapping to parse CSV and create SyncSession + SyncRecords."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    token = request.session.pop("sync_import_token", "")
+    session_name = request.session.pop("sync_import_name", "Synchronizace")
+    source_format = request.session.pop("sync_import_format", "interní")
+    delimiter = request.session.pop("sync_import_delimiter", ";")
+
+    if not token:
+        request.session["flash"] = {"type": "error", "message": "Žádná data k importu. Nahrajte CSV znovu."}
+        return RedirectResponse(url="/synchronizace/nova", status_code=303)
+
+    temp_path = os.path.join(_SYNC_TEMP_DIR, f"{token}.csv")
+    if not os.path.exists(temp_path):
+        request.session["flash"] = {"type": "error", "message": "Soubor importu nenalezen. Nahrajte CSV znovu."}
+        return RedirectResponse(url="/synchronizace/nova", status_code=303)
+
+    # Read user-confirmed mapping from form
+    form = await request.form()
+    unit_col = str(form.get("unit_col", ""))
+    owner_col = str(form.get("owner_col", ""))
+    first_name_col = str(form.get("first_name_col", ""))
+    last_name_col = str(form.get("last_name_col", ""))
+    share_col = str(form.get("share_col", ""))
+
+    # Read CSV from temp file
+    with open(temp_path, "r", encoding="utf-8") as f:
+        text = f.read()
+
+    # Clean up temp file
+    try:
+        os.remove(temp_path)
+    except OSError:
+        pass
+
+    # Create sync session
     ss = SyncSession(name=session_name, source_format=source_format)
     db.add(ss)
     db.flush()
 
-    # Parse CSV
+    # Parse CSV with confirmed mapping
     reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
 
-    # Normalize headers
-    fieldnames = reader.fieldnames or []
-    header_map = _detect_columns(fieldnames)
-
     from app.models.owner import Owner, Unit, OwnerUnit
-    from difflib import SequenceMatcher
-
-    # Check if we have first_name/last_name split columns
-    first_name_col = header_map.get("first_name", "")
-    last_name_col = header_map.get("last_name", "")
 
     record_count = 0
     for row in reader:
-        unit_col = header_map.get("unit", "")
-        owner_col = header_map.get("owner", "")
-        share_col = header_map.get("share", "")
-
         csv_unit = row.get(unit_col, "").strip() if unit_col else ""
 
         # Build owner name: combined column or first+last
@@ -127,15 +220,18 @@ async def sync_upload_csv(
         # Find unit in DB
         unit = None
         if csv_unit:
+            # Try exact match on unit_number
             try:
                 unit_num = int(csv_unit)
                 unit = db.query(Unit).filter(Unit.unit_number == unit_num).first()
             except (ValueError, TypeError):
-                pass
+                # Try string match (e.g. "123/4")
+                unit = db.query(Unit).filter(Unit.unit_number == csv_unit).first()
 
         # Find DB owner for this unit
         db_owner_name = ""
         db_share = ""
+        csv_data_json = json.dumps(dict(row), ensure_ascii=False)
         if unit:
             ou = (
                 db.query(OwnerUnit)
@@ -159,6 +255,7 @@ async def sync_upload_csv(
             csv_owner_name=csv_owner,
             db_share=db_share,
             csv_share=csv_share,
+            csv_data=csv_data_json,
         )
         db.add(record)
         record_count += 1
@@ -166,14 +263,9 @@ async def sync_upload_csv(
     db.commit()
 
     if record_count == 0:
-        detected = ", ".join(f"{k}='{v}'" for k, v in header_map.items()) if header_map else "žádné"
         request.session["flash"] = {
             "type": "error",
-            "message": (
-                f"Synchronizace '{session_name}' vytvořena, ale nebyly naparsovány žádné záznamy. "
-                f"Detekované sloupce: {detected}. "
-                f"Hlavičky CSV: {', '.join(fieldnames[:10])}."
-            ),
+            "message": f"Synchronizace '{session_name}' vytvořena, ale nebyly naparsovány žádné záznamy.",
         }
     else:
         request.session["flash"] = {"type": "success", "message": f"Synchronizace '{session_name}' vytvořena — {record_count} záznamů."}
@@ -686,35 +778,31 @@ def sync_export(
 def _detect_columns(headers: list) -> dict:
     """Detect unit/owner/share columns from CSV headers.
 
+    Returns dict with keys: unit, owner (or first_name + last_name), share.
+    Values are the original header strings to use with csv.DictReader.
+
     Supports multiple formats:
     - Czech: "Jednotka", "Vlastník", "Podíl", "Číslo jednotky"
-    - Internal export: "unit_number", "first_name", "last_name"
-    - sousede.cz and other external sources
+    - Internal export: "unit_number", "Příjmení", "Jméno"
+    - sousede.cz: "Vlastníci jednotky"
     """
     mapping = {}
     for h in headers:
         hl = h.lower().strip()
-        # Unit column — must be checked before generic "číslo"
-        if "unit" in mapping:
-            pass  # already found
-        elif any(kw in hl for kw in [
+        # Unit column
+        if "unit" not in mapping and any(kw in hl for kw in [
             "jednotka", "unit_number", "unit", "byt",
             "číslo jednotky", "cislo jednotky", "č. jednotky",
+            "číslo", "cislo",
         ]):
             mapping["unit"] = h
-        elif hl == "číslo" or hl == "cislo" or hl == "id":
-            # Generic "číslo" or "id" — only use as unit if no better match
-            if "unit" not in mapping:
-                mapping["unit"] = h
 
     for h in headers:
         hl = h.lower().strip()
-        # Owner column
-        if "owner" in mapping:
-            pass
-        elif any(kw in hl for kw in [
-            "vlastník", "vlastnik", "owner", "jméno a příjmení",
-            "jmeno a prijmeni", "name_with_titles",
+        # Owner column (combined name)
+        if "owner" not in mapping and any(kw in hl for kw in [
+            "vlastník", "vlastnik", "vlastníci jednotky", "vlastnici jednotky",
+            "owner", "jméno a příjmení", "jmeno a prijmeni", "name_with_titles",
         ]):
             mapping["owner"] = h
 
@@ -722,17 +810,19 @@ def _detect_columns(headers: list) -> dict:
     if "owner" not in mapping:
         for h in headers:
             hl = h.lower().strip()
-            if any(kw in hl for kw in ["příjmení", "prijmeni", "last_name", "lastname"]):
+            if "last_name" not in mapping and any(kw in hl for kw in [
+                "příjmení", "prijmeni", "last_name", "lastname",
+            ]):
                 mapping["last_name"] = h
-            elif any(kw in hl for kw in ["jméno", "jmeno", "first_name", "firstname"]):
+            elif "first_name" not in mapping and any(kw in hl for kw in [
+                "jméno", "jmeno", "first_name", "firstname",
+            ]):
                 mapping["first_name"] = h
 
     for h in headers:
         hl = h.lower().strip()
         # Share column
-        if "share" in mapping:
-            pass
-        elif any(kw in hl for kw in [
+        if "share" not in mapping and any(kw in hl for kw in [
             "podíl", "podil", "share", "sčd", "scd",
             "votes", "hlasy", "podíl sčd",
         ]):

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Mapování sloupců – SVJ Správa{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center gap-3">
+        <a href="/synchronizace/nova" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Mapování sloupců</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ session_name }} — {{ total_rows }} řádků, formát: {{ source_format }}</p>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Zkontrolujte automatickou detekci sloupců a případně opravte přiřazení. Sloupce s hodnotou „—" nebudou použity.</p>
+
+        <form method="post" action="/synchronizace/nova/potvrdit" class="space-y-5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Unit column -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Číslo jednotky</label>
+                    <select name="unit_col" class="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-white">
+                        <option value="">— nepřiřazeno —</option>
+                        {% for h in headers %}
+                        <option value="{{ h }}" {% if auto_mapping.get('unit') == h %}selected{% endif %}>{{ h }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Owner column (combined) -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Vlastník (celé jméno)</label>
+                    <select name="owner_col" class="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-white">
+                        <option value="">— nepřiřazeno —</option>
+                        {% for h in headers %}
+                        <option value="{{ h }}" {% if auto_mapping.get('owner') == h %}selected{% endif %}>{{ h }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-gray-400 mt-0.5">Nebo použijte Příjmení + Jméno níže</p>
+                </div>
+
+                <!-- Share column -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Podíl / SČD</label>
+                    <select name="share_col" class="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-white">
+                        <option value="">— nepřiřazeno —</option>
+                        {% for h in headers %}
+                        <option value="{{ h }}" {% if auto_mapping.get('share') == h %}selected{% endif %}>{{ h }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Last name column (split mode) -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Příjmení (alternativa)</label>
+                    <select name="last_name_col" class="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-white">
+                        <option value="">— nepřiřazeno —</option>
+                        {% for h in headers %}
+                        <option value="{{ h }}" {% if auto_mapping.get('last_name') == h %}selected{% endif %}>{{ h }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- First name column (split mode) -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Jméno (alternativa)</label>
+                    <select name="first_name_col" class="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-white">
+                        <option value="">— nepřiřazeno —</option>
+                        {% for h in headers %}
+                        <option value="{{ h }}" {% if auto_mapping.get('first_name') == h %}selected{% endif %}>{{ h }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Data preview table -->
+            {% if sample_rows %}
+            <div>
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Ukázka dat (první {{ sample_rows | length }} řádků z {{ total_rows }}):</p>
+                <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-600">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
+                                {% for h in headers %}
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ h }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
+                            {% for row in sample_rows %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/30">
+                                {% for h in headers %}
+                                <td class="px-3 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap max-w-[200px] truncate">{{ row.get(h, '') or '–' }}</td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <a href="/synchronizace/nova" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition">Zpět</a>
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition">
+                    Potvrdit a porovnat
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
