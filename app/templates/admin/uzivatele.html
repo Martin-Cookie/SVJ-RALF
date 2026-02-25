@@ -3,13 +3,7 @@
 
 {% block content %}
 <div class="space-y-4">
-    <div class="flex items-center justify-between">
-        <div>
-            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Správa uživatelů</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400">Celkem {{ users | length }} uživatelů</p>
-        </div>
-        <a href="/sprava" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">← Zpět na správu</a>
-    </div>
+    {% include "partials/admin_tabs.html" %}
 
     <!-- Create User Form -->
     <details class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">

@@ -3,13 +3,7 @@
 
 {% block content %}
 <div class="space-y-4">
-    <div class="flex items-center justify-between">
-        <div>
-            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Automatické zálohy</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400">Nastavení automatického zálohování</p>
-        </div>
-        <a href="/sprava/zalohy" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">← Zpět na zálohy</a>
-    </div>
+    {% include "partials/admin_tabs.html" %}
 
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
         <form method="post" action="/sprava/auto-zalohy" class="space-y-4">

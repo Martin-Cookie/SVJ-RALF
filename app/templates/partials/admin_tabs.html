@@ -1,0 +1,30 @@
+{# Admin section tab navigation. Include with: {% include "partials/admin_tabs.html" %} #}
+{% set tabs = [
+    {"url": "/sprava", "label": "SVJ Info", "match": ["/sprava"]},
+    {"url": "/sprava/uzivatele", "label": "Uživatelé", "match": ["/sprava/uzivatele"]},
+    {"url": "/sprava/audit", "label": "Audit log", "match": ["/sprava/audit"]},
+    {"url": "/sprava/zalohy", "label": "Zálohy", "match": ["/sprava/zalohy", "/sprava/auto-zalohy"]},
+    {"url": "/sprava/export", "label": "Export", "match": ["/sprava/export"]},
+    {"url": "/sprava/hromadne-upravy", "label": "Hromadné úpravy", "match": ["/sprava/hromadne-upravy"]},
+    {"url": "/sprava/smazat-data", "label": "Smazat data", "match": ["/sprava/smazat-data"], "danger": true},
+] %}
+<div class="space-y-4">
+    <h1 class="text-xl font-bold text-gray-900 dark:text-white">Správa SVJ</h1>
+    <nav class="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-slate-700 -mb-px">
+        {% for tab in tabs %}
+        {% set is_active = request.url.path in tab.match %}
+        <a href="{{ tab.url }}"
+           class="whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 transition
+                  {% if is_active %}
+                      {% if tab.danger %}border-red-500 text-red-600 dark:text-red-400
+                      {% else %}border-primary-500 text-primary-600 dark:text-primary-400{% endif %}
+                  {% else %}
+                      border-transparent
+                      {% if tab.danger %}text-red-500/60 dark:text-red-400/60 hover:text-red-600 dark:hover:text-red-400 hover:border-red-300
+                      {% else %}text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-slate-500{% endif %}
+                  {% endif %}">
+            {{ tab.label }}
+        </a>
+        {% endfor %}
+    </nav>
+</div>
