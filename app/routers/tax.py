@@ -3,7 +3,7 @@ import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -99,6 +99,47 @@ def tax_detail(
             "total_docs": total_docs,
             "matched_count": matched_count,
         },
+    )
+
+
+@router.get("/dane/{session_id}/pdf/{doc_id}")
+def tax_serve_pdf(
+    session_id: int,
+    doc_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Serve a PDF file for inline viewing."""
+    user = get_current_user(request, db)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    doc = db.query(TaxDocument).filter(
+        TaxDocument.id == doc_id,
+        TaxDocument.session_id == session_id,
+    ).first()
+    if doc is None:
+        return HTMLResponse("Dokument nenalezen", status_code=404)
+
+    file_path = doc.file_path
+    if not file_path or not os.path.exists(file_path):
+        return HTMLResponse("Soubor nenalezen na disku", status_code=404)
+
+    # Path traversal protection
+    real_path = os.path.realpath(file_path)
+    allowed_dir = os.path.realpath(os.path.join(settings.UPLOAD_DIR, "tax"))
+    if not real_path.startswith(allowed_dir + os.sep):
+        return HTMLResponse("Neplatná cesta souboru", status_code=403)
+
+    def iterfile():
+        with open(real_path, "rb") as f:
+            while chunk := f.read(65536):
+                yield chunk
+
+    return StreamingResponse(
+        iterfile(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename={doc.filename}"},
     )
 
 

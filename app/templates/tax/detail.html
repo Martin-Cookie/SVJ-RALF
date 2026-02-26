@@ -72,10 +72,11 @@
                     {% for doc in documents %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/30">
                         <td class="px-4 py-2.5">
-                            <span class="inline-flex items-center gap-1.5">
-                                <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                            <button type="button" onclick="openPdfPreview('/dane/{{ session.id }}/pdf/{{ doc.id }}', '{{ doc.filename }}')"
+                                    class="inline-flex items-center gap-1.5 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline transition">
+                                <svg class="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                                 {{ doc.filename }}
-                            </span>
+                            </button>
                         </td>
                         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-400">{{ doc.extracted_name or '–' }}</td>
                         <td class="px-4 py-2.5 text-gray-500">{{ doc.created_at | datum }}</td>
@@ -92,4 +93,59 @@
     </div>
     {% endif %}
 </div>
+
+<!-- PDF Preview Slide-out Panel -->
+<div id="pdf-panel-overlay" class="fixed inset-0 bg-black/30 z-40 hidden" onclick="closePdfPreview()"></div>
+<div id="pdf-panel" class="fixed top-0 right-0 h-full w-full sm:w-1/2 lg:w-[45%] bg-white dark:bg-slate-800 border-l border-gray-200 dark:border-slate-700 shadow-2xl z-50 translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+    <!-- Panel header -->
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-700/50 flex-shrink-0">
+        <div class="flex items-center gap-2 min-w-0">
+            <svg class="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+            <span id="pdf-panel-title" class="text-sm font-medium text-gray-900 dark:text-white truncate"></span>
+        </div>
+        <div class="flex items-center gap-1 flex-shrink-0">
+            <a id="pdf-panel-download" href="#" target="_blank" class="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition text-gray-500 dark:text-gray-400" title="Otevřít v novém okně">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+            </a>
+            <button type="button" onclick="closePdfPreview()" class="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition text-gray-500 dark:text-gray-400" title="Zavřít">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </div>
+    <!-- PDF iframe -->
+    <div class="flex-1 overflow-hidden">
+        <iframe id="pdf-panel-iframe" class="w-full h-full border-0" src="about:blank"></iframe>
+    </div>
+</div>
+
+<script>
+function openPdfPreview(url, filename) {
+    document.getElementById('pdf-panel-title').textContent = filename;
+    document.getElementById('pdf-panel-download').href = url;
+    document.getElementById('pdf-panel-iframe').src = url;
+    document.getElementById('pdf-panel-overlay').classList.remove('hidden');
+    // Trigger slide-in after a frame (for transition)
+    requestAnimationFrame(() => {
+        document.getElementById('pdf-panel').classList.remove('translate-x-full');
+    });
+    document.body.style.overflow = 'hidden';
+}
+
+function closePdfPreview() {
+    document.getElementById('pdf-panel').classList.add('translate-x-full');
+    document.getElementById('pdf-panel-overlay').classList.add('hidden');
+    document.body.style.overflow = '';
+    // Clear iframe after transition
+    setTimeout(() => {
+        document.getElementById('pdf-panel-iframe').src = 'about:blank';
+    }, 300);
+}
+
+// Close on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !document.getElementById('pdf-panel').classList.contains('translate-x-full')) {
+        closePdfPreview();
+    }
+});
+</script>
 {% endblock %}
